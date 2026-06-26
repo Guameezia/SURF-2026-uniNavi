@@ -71,21 +71,9 @@ function App() {
     onChange: (value: string) => void,
     label: string
   ) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <label style={{ fontSize: 14, color: "#666" }}>{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          padding: "8px 12px",
-          fontSize: 14,
-          border: "1px solid #ddd",
-          borderRadius: 4,
-          backgroundColor: "#fff",
-          minWidth: 200,
-          maxWidth: 280,
-        }}
-      >
+    <div className="route-field">
+      <label>{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">-- 请选择 --</option>
         {Object.entries(groupedPOIs).map(([floorId, floorPOIs]) => (
           <optgroup key={floorId} label={`${floorId}`}>
@@ -159,30 +147,6 @@ function App() {
           <IndoorMapSVG />
         </div>
       </main>
-
-      {/* 图例 */}
-      <div className="legend">
-        <div className="legend-item">
-          <span className="legend-dot" style={{ backgroundColor: "#4CAF50" }}></span>
-          房间
-        </div>
-        <div className="legend-item">
-          <span className="legend-dot" style={{ backgroundColor: "#2196F3" }}></span>
-          洗手间
-        </div>
-        <div className="legend-item">
-          <span className="legend-dot" style={{ backgroundColor: "#FF9800" }}></span>
-          出口
-        </div>
-        <div className="legend-item">
-          <span className="legend-dot" style={{ backgroundColor: "#9C27B0" }}></span>
-          电梯
-        </div>
-        <div className="legend-item">
-          <span className="legend-dot" style={{ backgroundColor: "#E91E63" }}></span>
-          楼梯
-        </div>
-      </div>
     </div>
   );
 }

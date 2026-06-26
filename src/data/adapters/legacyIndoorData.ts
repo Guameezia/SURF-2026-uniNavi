@@ -98,7 +98,17 @@ export function convertLegacyEdges(edges: LegacyEdge[]): MapEdge[] {
 
 /**
  * 获取地图资源路径
+ *
+ * mapper 提供像素 PNG 后：
+ * 1. 将 MAP_ASSET_EXTENSION 改为 'png'
+ * 2. 把 PNG 放入 public/maps/（如 S_0F.png）
+ * 3. 在 mapConfig.ts 更新对应楼层的 MAP_VIEWBOX 尺寸
  */
+export type MapAssetExtension = "svg" | "png";
+
+/** 像素底图就绪后改为 'png' */
+export const MAP_ASSET_EXTENSION: MapAssetExtension = "svg";
+
 export function getMapAssetPath(building: string, floorId: FloorId): string {
-  return `/maps/${building}_${floorId}.svg`;
+  return `/maps/${building}_${floorId}.${MAP_ASSET_EXTENSION}`;
 }

@@ -1,24 +1,29 @@
 /**
  * 室内地图 SVG 组件
- * 双层渲染：底层 SVG 背景图 + 顶层路网叠加层
  */
 
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React, { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { useMapStore, getRouteSegmentForFloor } from "../../store/mapStore";
-import { getMapAssetPath } from "../../data";
-import type { MapNode, FloorId } from "../../types/indoor";
+import { useLeafNoteStore } from "../../store/leafNoteStore";
+import { getMapAssetPath, DISPLAY_CANVAS, modelToDisplay, displayToModel, MAP_ASSET_EXTENSION } from "../../data";
+import type { LeafNote } from "../../types/leafNote";
 import { getFloorNodes, getFloorEdges } from "../../algorithms/graph";
+import { LeafNoteDialog, type LeafNoteDialogMode } from "./LeafNoteDialog";
+import { LeafMarker, LeafIconMini } from "./LeafMarker";
+import { PixelZones } from "./PixelZones";
 
-// 地图视口配置
-const MAP_CONFIG = {
-  width: 850,
-  height: 950,
-  minScale: 0.3,
-  maxScale: 3,
-  scaleStep: 0.1,
-};
+const BUILDING_ID = "S";
+const MAP_INTERACTION = { minScale: 0.3, maxScale: 3, scaleStep: 0.1 };
+const DEBUG_STORAGE_KEY = "uni-navi-map-debug";
+const DRAG_THRESHOLD = 5;
 
-// 节点样式配置
+function readInitialDebugMode(): boolean {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("debug") === "1") return true;
+  return window.localStorage.getItem(DEBUG_STORAGE_KEY) === "1";
+}
+
 const NODE_STYLES: Record<string, { fill: string; r: number }> = {
   room: { fill: "#4CAF50", r: 6 },
   toilet: { fill: "#2196F3", r: 6 },
@@ -28,239 +33,159 @@ const NODE_STYLES: Record<string, { fill: string; r: number }> = {
   junction: { fill: "#9E9E9E", r: 2 },
 };
 
-interface IndoorMapSVGProps {
-  floorId?: FloorId;
-  showJunctions?: boolean;
-  showLabels?: boolean;
-}
+type NoteDialogState =
+  | { kind: "create"; x: number; y: number }
+  | { kind: "view" | "edit"; note: LeafNote };
 
-export const IndoorMapSVG: React.FC<IndoorMapSVGProps> = ({
-  floorId: propFloorId,
-  showJunctions = false,
-  showLabels = true,
-}) => {
+export const IndoorMapSVG: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { graph, currentFloorId, selectedPOIId, routeResult, selectPOI } =
-    useMapStore();
+  const mapLayerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const dragMovedRef = useRef(false);
+  const mouseDownRef = useRef({ x: 0, y: 0 });
 
-  // 使用 props 或 store 中的楼层
-  const activeFloorId = propFloorId || currentFloorId;
+  const { graph, currentFloorId, selectedPOIId, routeResult, selectPOI } = useMapStore();
+  const { notes, addNote, updateNote, deleteNote } = useLeafNoteStore();
 
-  // 缩放和平移状态
+  const activeFloorId = currentFloorId;
+  const canvas = DISPLAY_CANVAS;
+  const toDisplay = useCallback(
+    (x: number, y: number) => modelToDisplay(x, y, BUILDING_ID, activeFloorId),
+    [activeFloorId]
+  );
+
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [debugMode, setDebugMode] = useState(readInitialDebugMode);
+  const [noteMode, setNoteMode] = useState(false);
+  const [noteDialog, setNoteDialog] = useState<NoteDialogState | null>(null);
 
-  // 获取当前楼层的节点和边
+  const floorNotes = useMemo(
+    () => notes.filter((n) => n.building === BUILDING_ID && n.floorId === activeFloorId),
+    [notes, activeFloorId]
+  );
+
   const floorNodes = graph ? getFloorNodes(graph, activeFloorId) : [];
   const floorEdges = graph ? getFloorEdges(graph, activeFloorId) : [];
-
-  // 获取当前楼层的路径段
   const currentRouteSegment = getRouteSegmentForFloor(routeResult, activeFloorId);
-
-  // 地图背景路径
   const mapPath = getMapAssetPath("S", activeFloorId);
 
-  // 鼠标滚轮缩放
+  const showPOI = debugMode;
+
+  const placeNoteAtClient = useCallback(
+    (clientX: number, clientY: number) => {
+      const svg = svgRef.current;
+      const ctm = svg?.getScreenCTM();
+      let svgX: number;
+      let svgY: number;
+
+      if (svg && ctm) {
+        const pt = svg.createSVGPoint();
+        pt.x = clientX;
+        pt.y = clientY;
+        const p = pt.matrixTransform(ctm.inverse());
+        svgX = p.x;
+        svgY = p.y;
+      } else if (mapLayerRef.current) {
+        const rect = mapLayerRef.current.getBoundingClientRect();
+        svgX = ((clientX - rect.left) / rect.width) * canvas.width;
+        svgY = ((clientY - rect.top) / rect.height) * canvas.height;
+      } else {
+        return;
+      }
+
+      if (svgX < 0 || svgY < 0 || svgX > canvas.width || svgY > canvas.height) return;
+
+      const model = displayToModel(svgX, svgY, BUILDING_ID, activeFloorId);
+      setNoteDialog({ kind: "create", x: model.x, y: model.y });
+    },
+    [activeFloorId, canvas.width, canvas.height]
+  );
+
+  const tryPlaceNote = useCallback(
+    (e: React.MouseEvent) => {
+      if (!noteMode || dragMovedRef.current) return;
+      if ((e.target as Element).closest?.(".leaf-note-marker")) return;
+      placeNoteAtClient(e.clientX, e.clientY);
+    },
+    [noteMode, placeNoteAtClient]
+  );
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -MAP_CONFIG.scaleStep : MAP_CONFIG.scaleStep;
-    setScale((prev) =>
-      Math.min(MAP_CONFIG.maxScale, Math.max(MAP_CONFIG.minScale, prev + delta))
+    const delta = e.deltaY > 0 ? -MAP_INTERACTION.scaleStep : MAP_INTERACTION.scaleStep;
+    setScale((s) =>
+      Math.min(MAP_INTERACTION.maxScale, Math.max(MAP_INTERACTION.minScale, s + delta))
     );
   }, []);
 
-  // 开始拖拽
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - translate.x, y: e.clientY - translate.y });
-  }, [translate]);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+      dragMovedRef.current = false;
+      mouseDownRef.current = { x: e.clientX, y: e.clientY };
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - translate.x, y: e.clientY - translate.y });
+    },
+    [translate]
+  );
 
-  // 拖拽中
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!isDragging) return;
-      setTranslate({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y,
-      });
+      if (isDragging) {
+        const dx = e.clientX - mouseDownRef.current.x;
+        const dy = e.clientY - mouseDownRef.current.y;
+        if (Math.hypot(dx, dy) > DRAG_THRESHOLD) dragMovedRef.current = true;
+        setTranslate({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+      }
     },
     [isDragging, dragStart]
   );
 
-  // 结束拖拽
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+  const handleMouseUp = useCallback(() => setIsDragging(false), []);
 
-  // 点击节点
-  const handleNodeClick = useCallback(
-    (node: MapNode, e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (node.type !== "junction") {
-        selectPOI(node.id);
-      }
-    },
-    [selectPOI]
-  );
-
-  // 重置视图
   const resetView = useCallback(() => {
     setScale(1);
     setTranslate({ x: 0, y: 0 });
   }, []);
 
-  // 楼层变化时重置视图
   useEffect(() => {
     resetView();
+    setNoteDialog(null);
   }, [activeFloorId, resetView]);
 
-  // 渲染边
-  const renderEdges = () => {
-    if (!graph) return null;
-
-    return floorEdges.map((edge, index) => {
-      const fromNode = graph.nodesById[edge.from];
-      const toNode = graph.nodesById[edge.to];
-      if (!fromNode || !toNode) return null;
-
-      return (
-        <line
-          key={`edge-${index}`}
-          x1={fromNode.x}
-          y1={fromNode.y}
-          x2={toNode.x}
-          y2={toNode.y}
-          stroke="#BDBDBD"
-          strokeWidth={1.5}
-          strokeOpacity={0.6}
-        />
-      );
+  const toggleDebugMode = useCallback(() => {
+    setDebugMode((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(DEBUG_STORAGE_KEY, next ? "1" : "0");
+      } catch {
+        // ignore
+      }
+      return next;
     });
-  };
+  }, []);
 
-  // 渲染路径
-  const renderRoute = () => {
-    if (!currentRouteSegment || currentRouteSegment.points.length < 2)
-      return null;
+  const dialogMode: LeafNoteDialogMode =
+    noteDialog?.kind === "create"
+      ? "create"
+      : noteDialog?.kind === "edit"
+        ? "edit"
+        : "view";
 
-    const pathData = currentRouteSegment.points
-      .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
-      .join(" ");
-
-    return (
-      <g className="route-layer">
-        {/* 路径底层光晕 */}
-        <path
-          d={pathData}
-          fill="none"
-          stroke="#1976D2"
-          strokeWidth={8}
-          strokeOpacity={0.3}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* 路径主线 */}
-        <path
-          d={pathData}
-          fill="none"
-          stroke="#1976D2"
-          strokeWidth={4}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* 路径节点标记 */}
-        {currentRouteSegment.points.map((point, index) => (
-          <circle
-            key={`route-point-${index}`}
-            cx={point.x}
-            cy={point.y}
-            r={index === 0 || index === currentRouteSegment.points.length - 1 ? 8 : 4}
-            fill={
-              index === 0
-                ? "#4CAF50"
-                : index === currentRouteSegment.points.length - 1
-                ? "#F44336"
-                : "#1976D2"
-            }
-            stroke="#fff"
-            strokeWidth={2}
-          />
-        ))}
-      </g>
-    );
-  };
-
-  // 渲染节点
-  const renderNodes = () => {
-    return floorNodes.map((node) => {
-      // 根据配置决定是否显示 junction
-      if (node.type === "junction" && !showJunctions) return null;
-
-      const style = NODE_STYLES[node.type] || NODE_STYLES.junction;
-      const isSelected = node.id === selectedPOIId;
-      const isOnRoute =
-        currentRouteSegment?.nodeIds.includes(node.id) ?? false;
-
-      return (
-        <g
-          key={node.id}
-          className={`map-node ${node.type} ${isSelected ? "selected" : ""}`}
-          onClick={(e) => handleNodeClick(node, e)}
-          style={{ cursor: node.type !== "junction" ? "pointer" : "default" }}
-        >
-          {/* 选中高亮 */}
-          {isSelected && (
-            <circle
-              cx={node.x}
-              cy={node.y}
-              r={style.r + 6}
-              fill="none"
-              stroke="#FF5722"
-              strokeWidth={3}
-              strokeDasharray="4 2"
-            />
-          )}
-          {/* 节点圆点 */}
-          <circle
-            cx={node.x}
-            cy={node.y}
-            r={isOnRoute ? style.r + 2 : style.r}
-            fill={style.fill}
-            stroke={isSelected ? "#FF5722" : "#fff"}
-            strokeWidth={isSelected ? 2 : 1}
-          />
-          {/* 标签 */}
-          {showLabels && node.type !== "junction" && node.label && (
-            <text
-              x={node.x}
-              y={node.y - style.r - 4}
-              textAnchor="middle"
-              fontSize={10}
-              fill="#333"
-              style={{ pointerEvents: "none" }}
-            >
-              {node.label}
-            </text>
-          )}
-        </g>
-      );
-    });
-  };
+  const dialogText =
+    noteDialog?.kind === "create"
+      ? ""
+      : noteDialog?.note.text ?? "";
 
   return (
     <div
       ref={containerRef}
       className="indoor-map-container"
       style={{
-        position: "relative",
-        width: "100%",
-        height: "100%",
-        overflow: "hidden",
-        backgroundColor: "#f5f5f5",
-        cursor: isDragging ? "grabbing" : "grab",
+        cursor: isDragging ? "grabbing" : noteMode ? "crosshair" : "grab",
       }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
@@ -268,120 +193,226 @@ export const IndoorMapSVG: React.FC<IndoorMapSVGProps> = ({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {/* 变换容器 */}
       <div
+        ref={mapLayerRef}
+        className="gather-map-layer"
         style={{
           transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
           transformOrigin: "center center",
           position: "absolute",
           left: "50%",
           top: "50%",
-          marginLeft: -MAP_CONFIG.width / 2,
-          marginTop: -MAP_CONFIG.height / 2,
+          marginLeft: -canvas.width / 2,
+          marginTop: -canvas.height / 2,
         }}
       >
-        {/* 底层：SVG 背景地图 */}
         <img
+          className={`gather-map-image${MAP_ASSET_EXTENSION === "png" ? " gather-map-image--pixel" : ""}`}
           src={mapPath}
           alt={`Floor ${activeFloorId}`}
-          style={{
-            width: MAP_CONFIG.width,
-            height: MAP_CONFIG.height,
-            display: "block",
-            pointerEvents: "none",
-          }}
+          width={canvas.width}
+          height={canvas.height}
           draggable={false}
         />
 
-        {/* 顶层：路网叠加 SVG */}
         <svg
-          width={MAP_CONFIG.width}
-          height={MAP_CONFIG.height}
-          viewBox={`0 0 ${MAP_CONFIG.width} ${MAP_CONFIG.height}`}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-          }}
+          ref={svgRef}
+          className="gather-map-overlay"
+          width={canvas.width}
+          height={canvas.height}
+          viewBox={`0 0 ${canvas.width} ${canvas.height}`}
+          onMouseUp={tryPlaceNote}
         >
-          {/* 边层 */}
-          <g className="edges-layer">{renderEdges()}</g>
+          {noteMode && (
+            <rect
+              x={0}
+              y={0}
+              width={canvas.width}
+              height={canvas.height}
+              fill="transparent"
+              pointerEvents="all"
+            />
+          )}
 
-          {/* 路径层 */}
-          {renderRoute()}
+          <PixelZones building={BUILDING_ID} floorId={activeFloorId} toDisplay={toDisplay} />
 
-          {/* 节点层 */}
-          <g className="nodes-layer">{renderNodes()}</g>
+          {debugMode && (
+            <g className="edges-layer">
+              {floorEdges.map((edge, i) => {
+                const from = graph!.nodesById[edge.from];
+                const to = graph!.nodesById[edge.to];
+                if (!from || !to) return null;
+                const a = toDisplay(from.x, from.y);
+                const b = toDisplay(to.x, to.y);
+                return (
+                  <line
+                    key={i}
+                    x1={a.x}
+                    y1={a.y}
+                    x2={b.x}
+                    y2={b.y}
+                    stroke="#BDBDBD"
+                    strokeWidth={1.5}
+                    strokeOpacity={0.6}
+                  />
+                );
+              })}
+            </g>
+          )}
+
+          {currentRouteSegment && currentRouteSegment.points.length >= 2 && (
+            <g className="route-layer">
+              <path
+                d={currentRouteSegment.points
+                  .map((p, i) => {
+                    const pt = toDisplay(p.x, p.y);
+                    return `${i === 0 ? "M" : "L"} ${pt.x} ${pt.y}`;
+                  })
+                  .join(" ")}
+                fill="none"
+                stroke="#26c6da"
+                strokeWidth={5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </g>
+          )}
+
+          {showPOI && (
+            <g className="nodes-layer">
+              {floorNodes.map((node) => {
+                if (node.type === "junction" && !debugMode) return null;
+                const style = NODE_STYLES[node.type] || NODE_STYLES.junction;
+                const pos = toDisplay(node.x, node.y);
+                const isSelected = node.id === selectedPOIId;
+                return (
+                  <g
+                    key={node.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!noteMode && node.type !== "junction") selectPOI(node.id);
+                    }}
+                    style={{ cursor: node.type !== "junction" ? "pointer" : "default" }}
+                  >
+                    <circle cx={pos.x} cy={pos.y} r={style.r} fill={style.fill} stroke="#fff" />
+                    {debugMode && node.label && node.type !== "junction" && (
+                      <text x={pos.x} y={pos.y - style.r - 4} textAnchor="middle" fontSize={10} fill="#333">
+                        {node.label}
+                      </text>
+                    )}
+                    {isSelected && (
+                      <circle
+                        cx={pos.x}
+                        cy={pos.y}
+                        r={style.r + 6}
+                        fill="none"
+                        stroke="#FF5722"
+                        strokeWidth={2}
+                        strokeDasharray="4 2"
+                      />
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          )}
+
+          <g className="leaf-notes-layer">
+            {floorNotes.map((note) => {
+              const pos = toDisplay(note.x, note.y);
+              return (
+                <LeafMarker
+                  key={note.id}
+                  x={pos.x}
+                  y={pos.y}
+                  seed={note.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setNoteMode(false);
+                    setNoteDialog({ kind: "view", note });
+                  }}
+                />
+              );
+            })}
+          </g>
         </svg>
       </div>
 
-      {/* 控制按钮 */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 16,
-          right: 16,
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        }}
-      >
+      <div className="map-toolbar">
         <button
-          onClick={() => setScale((s) => Math.min(MAP_CONFIG.maxScale, s + 0.2))}
-          style={controlButtonStyle}
-          title="放大"
+          type="button"
+          className={`map-note-mode-btn${noteMode ? " active" : ""}`}
+          onClick={() => setNoteMode((v) => !v)}
+          onMouseDown={(e) => e.stopPropagation()}
         >
+          <LeafIconMini size={16} /> 贴便签
+        </button>
+        <label className="map-debug-toggle">
+          <input type="checkbox" checked={debugMode} onChange={toggleDebugMode} />
+          <span>调试模式</span>
+        </label>
+      </div>
+
+      <p className="map-hint">
+        <LeafIconMini size={16} />
+        <span>
+          {noteMode
+            ? "点击地图放置像素叶子便签"
+            : "像素食堂 · 点击叶子查看便签"}
+        </span>
+      </p>
+
+      <LeafNoteDialog
+        open={noteDialog !== null}
+        mode={dialogMode}
+        initialText={dialogText}
+        onSave={(text) => {
+          if (noteDialog?.kind === "create") {
+            addNote({
+              building: BUILDING_ID,
+              floorId: activeFloorId,
+              x: noteDialog.x,
+              y: noteDialog.y,
+              text,
+            });
+            setNoteDialog(null);
+            setNoteMode(false);
+          } else if (noteDialog?.kind === "edit") {
+            updateNote(noteDialog.note.id, text);
+            setNoteDialog(null);
+          }
+        }}
+        onEdit={
+          noteDialog?.kind === "view"
+            ? () => setNoteDialog({ kind: "edit", note: noteDialog.note })
+            : undefined
+        }
+        onDelete={
+          noteDialog && noteDialog.kind !== "create"
+            ? () => {
+                deleteNote(noteDialog.note.id);
+                setNoteDialog(null);
+              }
+            : undefined
+        }
+        onClose={() => setNoteDialog(null)}
+      />
+
+      <div className="map-zoom-controls">
+        <button type="button" onClick={() => setScale((s) => Math.min(3, s + 0.2))} aria-label="放大">
           +
         </button>
-        <button
-          onClick={() => setScale((s) => Math.max(MAP_CONFIG.minScale, s - 0.2))}
-          style={controlButtonStyle}
-          title="缩小"
-        >
-          -
+        <button type="button" onClick={() => setScale((s) => Math.max(0.3, s - 0.2))} aria-label="缩小">
+          −
         </button>
-        <button
-          onClick={resetView}
-          style={controlButtonStyle}
-          title="重置视图"
-        >
+        <button type="button" onClick={resetView} aria-label="重置视图">
           ⟲
         </button>
       </div>
 
-      {/* 当前楼层标签 */}
-      <div
-        style={{
-          position: "absolute",
-          top: 16,
-          left: 16,
-          backgroundColor: "rgba(0,0,0,0.7)",
-          color: "#fff",
-          padding: "8px 16px",
-          borderRadius: 4,
-          fontWeight: "bold",
-          fontSize: 18,
-        }}
-      >
-        {activeFloorId}
-      </div>
+      <div className="map-floor-badge">{activeFloorId}</div>
     </div>
   );
-};
-
-// 控制按钮样式
-const controlButtonStyle: React.CSSProperties = {
-  width: 36,
-  height: 36,
-  borderRadius: 4,
-  border: "1px solid #ccc",
-  backgroundColor: "#fff",
-  cursor: "pointer",
-  fontSize: 18,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
 };
 
 export default IndoorMapSVG;
