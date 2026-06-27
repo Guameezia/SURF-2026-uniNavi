@@ -4,8 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { useMapStore } from "./store/mapStore";
-import { IndoorMapSVG } from "./components/map/IndoorMapSVG";
-import { FloorSelector } from "./components/map/FloorSelector";
+import { MapView } from "./components/map/MapView";
 import { createGraph, getPOINodes, getFloors } from "./algorithms/graph";
 import { findRoute } from "./algorithms/pathfinding";
 import { sNodes, sEdges } from "./data";
@@ -137,15 +136,7 @@ function App() {
 
       {/* 主内容区 */}
       <main className="app-main">
-        {/* 楼层选择器 */}
-        <aside className="floor-selector-panel">
-          <FloorSelector />
-        </aside>
-
-        {/* 地图区域 */}
-        <div className="map-container">
-          <IndoorMapSVG />
-        </div>
+        <MapView />
       </main>
     </div>
   );

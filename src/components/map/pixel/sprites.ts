@@ -8,26 +8,24 @@ export interface PixelSpriteDef {
   pixelSize?: number;
 }
 
-/** 8-bit 小叶子 */
+/** 座位级像素小叶子（teardrop + 叶脉，约 7×7 px） */
 export const PIXEL_LEAF: PixelSpriteDef = {
-  pixelSize: 2,
+  pixelSize: 1,
   palette: {
     ".": null,
-    o: "#1a4a10",
-    G: "#8cc832",
-    g: "#c8ee55",
-    l: "#e8ff90",
+    o: "#1a5018",
+    G: "#52b830",
+    g: "#3a9020",
+    l: "#78d848",
   },
   rows: [
-    "..o.....",
-    ".oggo...",
-    ".ogggo..",
-    "ogggggo.",
-    "oggggggo",
-    "oggggggo",
-    ".ogggo..",
-    ".oggo...",
-    "..oo....",
+    "...o...",
+    "..lG...",
+    ".lGGg..",
+    ".lGdG..",
+    ".lGGg..",
+    "..gGg..",
+    "...o...",
   ],
 };
 

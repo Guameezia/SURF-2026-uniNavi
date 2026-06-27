@@ -40,11 +40,12 @@ export const useMapStore = create<MapState>((set) => ({
 
   // 初始化地图
   initializeMap: (graph, pois, floors) => {
+    const prefer0F = floors.find((f) => f.id === "0F");
     set({
       graph,
       pois,
       floors,
-      currentFloorId: floors.length > 0 ? floors[0].id : "1F",
+      currentFloorId: prefer0F?.id ?? (floors.length > 0 ? floors[0].id : "1F"),
       isLoading: false,
       error: null,
     });

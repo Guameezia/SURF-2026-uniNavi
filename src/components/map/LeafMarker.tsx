@@ -1,5 +1,5 @@
 /**
- * 像素风叶子便签标记
+ * 像素风叶子便签标记（座位级尺寸）
  */
 
 import { PixelArtSprite } from "./pixel/PixelArtSprite";
@@ -18,8 +18,9 @@ function hashSeed(seed: string): number {
   return Math.abs(h);
 }
 
+/** 地图上的便签叶子：视觉约 7px，点击热区稍大 */
 export function LeafMarker({ x, y, seed = "leaf", onClick }: LeafMarkerProps) {
-  const rotation = (hashSeed(seed) % 12) - 6;
+  const rotation = -18 + (hashSeed(seed) % 10) - 5;
 
   return (
     <g
@@ -28,20 +29,21 @@ export function LeafMarker({ x, y, seed = "leaf", onClick }: LeafMarkerProps) {
       onClick={onClick}
       style={{ cursor: "pointer" }}
     >
+      <circle r={7} fill="transparent" stroke="none" />
       <PixelArtSprite def={PIXEL_LEAF} centered />
     </g>
   );
 }
 
-/** 工具栏 / 提示条用的小号像素叶子 */
-export function LeafIconMini({ size = 18 }: { size?: number }) {
-  const scale = size / 18;
+/** 工具栏 / 弹窗用的小号像素叶子（放大显示） */
+export function LeafIconMini({ size = 16 }: { size?: number }) {
+  const scale = size / 14;
 
   return (
     <svg
       width={size}
       height={size}
-      viewBox="-9 -9 18 18"
+      viewBox="-7 -7 14 14"
       aria-hidden="true"
       className="pixel-leaf-icon-mini"
       style={{ display: "inline-block", verticalAlign: "middle", flexShrink: 0 }}
