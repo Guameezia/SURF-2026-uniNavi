@@ -11,7 +11,7 @@ export const sEdges: MapEdge[] = [
   {
     "from": "S_0F_SA_J_W2",
     "to": "S_0F_SA_J_C1",
-    "distance": 120,
+    "distance": 100,
     "edgeType": "flat",
     "directionHint": "east"
   },
@@ -37,9 +37,31 @@ export const sEdges: MapEdge[] = [
     "directionHint": "east"
   },
   {
+    "from": "S_0F_SA_J_W1",
+    "to": "S_0F_MID_J_W",
+    "distance": 200,
+    "edgeType": "flat",
+    "directionHint": "south",
+    "waypoints": [{ "x": 190, "y": 195 }]
+  },
+  {
+    "from": "S_0F_MID_J_W",
+    "to": "S_0F_MID_J_C1",
+    "distance": 160,
+    "edgeType": "flat",
+    "directionHint": "east"
+  },
+  {
+    "from": "S_0F_MID_J_W",
+    "to": "S_0F_SB_J_W1",
+    "distance": 30,
+    "edgeType": "flat",
+    "directionHint": "south"
+  },
+  {
     "from": "S_0F_SB_J_W1",
     "to": "S_0F_SB_J_W2",
-    "distance": 65,
+    "distance": 40,
     "edgeType": "flat",
     "directionHint": "east"
   },
@@ -72,39 +94,85 @@ export const sEdges: MapEdge[] = [
     "directionHint": "east"
   },
   {
-    "from": "S_0F_SB_J_C1",
-    "to": "S_0F_SB_J_T",
-    "distance": 20,
+    "from": "S_0F_SA_J_E1",
+    "to": "S_0F_SB_J_E1",
+    "distance": 195,
     "edgeType": "flat",
     "directionHint": "south"
+  },
+  {
+    "from": "S_0F_MID_J_C1",
+    "to": "S_0F_SB_J_T",
+    "distance": 70,
+    "edgeType": "flat",
+    "directionHint": "south",
+    "waypoints": [{ "x": 380, "y": 420 }]
   },
   {
     "from": "S_0F_SB_J_T",
     "to": "S_0F_SC_J_T",
-    "distance": 90,
+    "distance": 50,
     "edgeType": "flat",
-    "directionHint": "south"
+    "directionHint": "south",
+    "waypoints": [{ "x": 380, "y": 500 }]
   },
   {
     "from": "S_0F_SC_J_C1",
     "to": "S_0F_SC_J_T",
-    "distance": 110,
+    "distance": 145,
     "edgeType": "flat",
     "directionHint": "east"
   },
   {
     "from": "S_0F_SC_J_T",
-    "to": "S_0F_SC_J_C2",
-    "distance": 243,
+    "to": "S_0F_SC_J_EH",
+    "distance": 260,
     "edgeType": "flat",
     "directionHint": "east"
   },
   {
+    "from": "S_0F_SC_J_EH",
+    "to": "S_0F_SC_J_C2",
+    "distance": 65,
+    "edgeType": "flat",
+    "directionHint": "south"
+  },
+  {
+    "from": "S_0F_SC_J_C1",
+    "to": "S_0F_SD_J_NW",
+    "distance": 251,
+    "edgeType": "flat",
+    "directionHint": "south",
+    "waypoints": [{ "x": 210, "y": 530 }, { "x": 244, "y": 530 }]
+  },
+  {
     "from": "S_0F_SD_J_C1",
-    "to": "S_0F_SD_J_C2",
-    "distance": 345,
+    "to": "S_0F_SD_J_NW",
+    "distance": 35,
+    "edgeType": "flat",
+    "directionHint": "north"
+  },
+  {
+    "from": "S_0F_SD_J_NW",
+    "to": "S_0F_SD_J_N",
+    "distance": 226,
     "edgeType": "flat",
     "directionHint": "east"
+  },
+  {
+    "from": "S_0F_SD_J_N",
+    "to": "S_0F_SD_J_NE",
+    "distance": 150,
+    "edgeType": "flat",
+    "directionHint": "east"
+  },
+  {
+    "from": "S_0F_SD_J_NE",
+    "to": "S_0F_SD_J_C2",
+    "distance": 55,
+    "edgeType": "flat",
+    "directionHint": "south",
+    "waypoints": [{ "x": 640, "y": 722 }, { "x": 640, "y": 765 }]
   },
   {
     "from": "S_1F_GW_J_N",
@@ -524,7 +592,8 @@ export const sEdges: MapEdge[] = [
     "to": "S_4F_SB_J_C1",
     "distance": 120,
     "edgeType": "flat",
-    "directionHint": "east"
+    "directionHint": "east",
+    "waypoints": [{ "x": 280, "y": 375 }, { "x": 280, "y": 385 }]
   },
   {
     "from": "S_4F_SB_J_C1",
@@ -664,7 +733,8 @@ export const sEdges: MapEdge[] = [
     "to": "S_5F_SB_J_C1",
     "distance": 120,
     "edgeType": "flat",
-    "directionHint": "east"
+    "directionHint": "east",
+    "waypoints": [{ "x": 280, "y": 375 }, { "x": 280, "y": 385 }]
   },
   {
     "from": "S_5F_SB_J_C1",
@@ -759,10 +829,11 @@ export const sEdges: MapEdge[] = [
   },
   {
     "from": "S_0F_Tongfa_Canteen",
-    "to": "S_0F_SA_J_W2",
-    "distance": 30,
+    "to": "S_0F_SA_J_W1",
+    "distance": 65,
     "edgeType": "flat",
-    "directionHint": "north"
+    "directionHint": "north",
+    "waypoints": [{ "x": 190, "y": 255 }]
   },
   {
     "from": "S_0F_SD085",
@@ -773,10 +844,11 @@ export const sEdges: MapEdge[] = [
   },
   {
     "from": "S_0F_SA007",
-    "to": "S_0F_SA_J_C2",
-    "distance": 30,
+    "to": "S_0F_SA_J_E1",
+    "distance": 75,
     "edgeType": "flat",
-    "directionHint": "north"
+    "directionHint": "north",
+    "waypoints": [{ "x": 650, "y": 265 }]
   },
   {
     "from": "S_1F_SA136",
@@ -1088,17 +1160,17 @@ export const sEdges: MapEdge[] = [
   },
   {
     "from": "S_2F_SC176",
-    "to": "S_2F_SC_J_W2",
+    "to": "S_2F_SC_J_W1",
     "distance": 0,
     "edgeType": "flat",
-    "directionHint": "south"
+    "directionHint": "west"
   },
   {
     "from": "S_2F_SC262",
-    "to": "S_2F_SC_J_W2",
+    "to": "S_2F_SC_J_W1",
     "distance": 0,
     "edgeType": "flat",
-    "directionHint": "south"
+    "directionHint": "west"
   },
   {
     "from": "S_2F_SC250",
@@ -2705,7 +2777,7 @@ export const sEdges: MapEdge[] = [
   },
   {
     "from": "S_0F_SC_ELEV",
-    "to": "S_0F_SC_J_C2",
+    "to": "S_0F_SC_J_EH",
     "distance": 40,
     "edgeType": "flat",
     "directionHint": "west"
@@ -2992,17 +3064,17 @@ export const sEdges: MapEdge[] = [
   },
   {
     "from": "S_SB_EXIT_W_0F",
-    "to": "S_0F_SB_J_W1",
-    "distance": 43,
+    "to": "S_0F_MID_J_W",
+    "distance": 32,
     "edgeType": "flat",
-    "directionHint": "north"
+    "directionHint": "east"
   },
   {
     "from": "S_SC_EXIT_E_0F",
-    "to": "S_0F_SC_J_C2",
-    "distance": 84,
+    "to": "S_0F_SC_J_EH",
+    "distance": 50,
     "edgeType": "flat",
-    "directionHint": "south"
+    "directionHint": "west"
   },
   {
     "from": "S_SA_EXIT_W_3F",
@@ -3205,7 +3277,8 @@ export const sEdges: MapEdge[] = [
     "to": "S_0F_SC_J_C2",
     "distance": 30,
     "edgeType": "flat",
-    "directionHint": "west"
+    "directionHint": "north",
+    "waypoints": [{ "x": 610, "y": 570 }, { "x": 610, "y": 560 }]
   },
   {
     "from": "S_0F_SD_STAIR_E",

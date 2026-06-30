@@ -126,6 +126,7 @@ interface MapEdge {
   distance: number;     // 距离（米）
   edgeType: EdgeType;   // 边类型
   directionHint: string; // 方向提示
+  waypoints?: MapPoint[]; // 可选中间折点，用于贴合浅灰色可走廊道
 }
 ```
 

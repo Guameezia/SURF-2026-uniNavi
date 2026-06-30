@@ -12,6 +12,7 @@ import type {
   FloorId,
 } from "../types/indoor";
 import { FLOOR_ORDER } from "../data";
+import { normalizeOrthogonalGraph } from "./orthogonalGraph";
 
 /**
  * 生成边的唯一键
@@ -25,14 +26,17 @@ export function getEdgeKey(from: string, to: string): string {
  * 创建图结构
  */
 export function createGraph(nodes: MapNode[], edges: MapEdge[]): Graph {
+  const { nodes: normalizedNodes, edges: normalizedEdges } =
+    normalizeOrthogonalGraph(nodes, edges);
+
   // 构建 nodesById
   const nodesById: Record<string, MapNode> = {};
-  for (const node of nodes) {
+  for (const node of normalizedNodes) {
     nodesById[node.id] = node;
   }
 
   // 过滤无效边（引用不存在节点的边）
-  const validEdges = edges.filter((edge) => {
+  const validEdges = normalizedEdges.filter((edge) => {
     const fromExists = nodesById[edge.from] !== undefined;
     const toExists = nodesById[edge.to] !== undefined;
     if (!fromExists || !toExists) {
@@ -46,7 +50,7 @@ export function createGraph(nodes: MapNode[], edges: MapEdge[]): Graph {
 
   // 构建 adjacency 邻接表（无向图，双向添加）
   const adjacency: Record<string, GraphAdjacencyItem[]> = {};
-  for (const node of nodes) {
+  for (const node of normalizedNodes) {
     adjacency[node.id] = [];
   }
 
@@ -75,7 +79,7 @@ export function createGraph(nodes: MapNode[], edges: MapEdge[]): Graph {
     adjacency,
     edgesByKey,
     edges: validEdges,
-    nodes,
+    nodes: normalizedNodes,
   };
 }
 

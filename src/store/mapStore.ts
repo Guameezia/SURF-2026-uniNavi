@@ -3,7 +3,16 @@
  */
 
 import { create } from "zustand";
-import type { FloorId, Floor, RouteResult, Graph, POI } from "../types/indoor";
+import type {
+  FloorId,
+  Floor,
+  RouteResult,
+  Graph,
+  POI,
+  RouteMode,
+  ComputedRoute,
+  NavigationUIPhase,
+} from "../types/indoor";
 
 interface MapState {
   // 状态
@@ -13,7 +22,14 @@ interface MapState {
   routeResult: RouteResult | null;
   graph: Graph | null;
   pois: POI[];
-  
+
+  // 导航状态
+  uiPhase: NavigationUIPhase;
+  comfortRoute: ComputedRoute | null;
+  fastRoute: ComputedRoute | null;
+  selectedRouteMode: RouteMode;
+  hasMultipleRoutes: boolean;
+
   // 加载状态
   isLoading: boolean;
   error: string | null;
@@ -23,11 +39,18 @@ interface MapState {
   setCurrentFloor: (floorId: FloorId) => void;
   selectPOI: (poiId: string | null) => void;
   setRoute: (result: RouteResult) => void;
+  setDualRoutes: (
+    comfort: ComputedRoute,
+    fast: ComputedRoute,
+    hasMultipleRoutes: boolean
+  ) => void;
+  setRouteMode: (mode: RouteMode) => void;
   clearRoute: () => void;
+  beginEditingRoute: () => void;
   setError: (error: string | null) => void;
 }
 
-export const useMapStore = create<MapState>((set) => ({
+export const useMapStore = create<MapState>((set, get) => ({
   // 初始状态
   floors: [],
   currentFloorId: "1F",
@@ -35,6 +58,11 @@ export const useMapStore = create<MapState>((set) => ({
   routeResult: null,
   graph: null,
   pois: [],
+  uiPhase: "idle",
+  comfortRoute: null,
+  fastRoute: null,
+  selectedRouteMode: "comfort",
+  hasMultipleRoutes: false,
   isLoading: true,
   error: null,
 
@@ -63,7 +91,6 @@ export const useMapStore = create<MapState>((set) => ({
   // 设置路径结果
   setRoute: (result) => {
     set(() => {
-      // 如果有路径结果，自动切换到路径起点所在楼层
       if (result.found && result.segments.length > 0) {
         return {
           routeResult: result,
@@ -74,9 +101,59 @@ export const useMapStore = create<MapState>((set) => ({
     });
   },
 
+  setDualRoutes: (comfort, fast, hasMultipleRoutes) => {
+    const active = get().selectedRouteMode === "fast" ? fast : comfort;
+    const route = active.found ? active : comfort.found ? comfort : fast;
+
+    set({
+      comfortRoute: comfort,
+      fastRoute: fast,
+      hasMultipleRoutes,
+      routeResult: route.found ? route : null,
+      uiPhase: route.found ? "navigating" : "idle",
+      currentFloorId:
+        route.found && route.segments.length > 0
+          ? route.segments[0].floorId
+          : get().currentFloorId,
+    });
+  },
+
+  setRouteMode: (mode) => {
+    const { comfortRoute, fastRoute } = get();
+    const route = mode === "fast" ? fastRoute : comfortRoute;
+    if (!route?.found) {
+      set({ selectedRouteMode: mode });
+      return;
+    }
+    set({
+      selectedRouteMode: mode,
+      routeResult: route,
+      currentFloorId:
+        route.segments.length > 0 ? route.segments[0].floorId : get().currentFloorId,
+    });
+  },
+
   // 清除路径
   clearRoute: () => {
-    set({ routeResult: null });
+    set({
+      routeResult: null,
+      comfortRoute: null,
+      fastRoute: null,
+      hasMultipleRoutes: false,
+      uiPhase: "idle",
+      selectedRouteMode: "comfort",
+    });
+  },
+
+  beginEditingRoute: () => {
+    set({
+      routeResult: null,
+      comfortRoute: null,
+      fastRoute: null,
+      hasMultipleRoutes: false,
+      uiPhase: "idle",
+      selectedRouteMode: "comfort",
+    });
   },
 
   // 设置错误

@@ -188,8 +188,28 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "0F",
     "block": "SB",
-    "x": 150,
-    "y": 410
+    "x": 158,
+    "y": 420
+  },
+  {
+    "id": "S_0F_MID_J_W",
+    "type": "junction",
+    "label": "",
+    "building": "S",
+    "floorId": "0F",
+    "block": "MID",
+    "x": 190,
+    "y": 420
+  },
+  {
+    "id": "S_0F_MID_J_C1",
+    "type": "junction",
+    "label": "",
+    "building": "S",
+    "floorId": "0F",
+    "block": "MID",
+    "x": 350,
+    "y": 420
   },
   {
     "id": "S_0F_SB_J_C1",
@@ -238,7 +258,7 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "0F",
     "block": "SB",
-    "x": 185,
+    "x": 190,
     "y": 390
   },
   {
@@ -258,8 +278,8 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "0F",
     "block": "SB",
-    "x": 350,
-    "y": 410
+    "x": 380,
+    "y": 460
   },
   {
     "id": "S_0F_SC_ELEV",
@@ -308,8 +328,8 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "0F",
     "block": "SC",
-    "x": 245,
-    "y": 535
+    "x": 210,
+    "y": 555
   },
   {
     "id": "S_0F_SC_J_C2",
@@ -318,8 +338,18 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "0F",
     "block": "SC",
-    "x": 590,
-    "y": 535
+    "x": 609,
+    "y": 560
+  },
+  {
+    "id": "S_0F_SC_J_EH",
+    "type": "junction",
+    "label": "",
+    "building": "S",
+    "floorId": "0F",
+    "block": "SC",
+    "x": 610,
+    "y": 500
   },
   {
     "id": "S_0F_SC_J_T",
@@ -378,8 +408,8 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "0F",
     "block": "SD",
-    "x": 245,
-    "y": 735
+    "x": 244,
+    "y": 755
   },
   {
     "id": "S_0F_SD_J_C2",
@@ -388,8 +418,38 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "0F",
     "block": "SD",
-    "x": 590,
-    "y": 735
+    "x": 639,
+    "y": 765
+  },
+  {
+    "id": "S_0F_SD_J_NW",
+    "type": "junction",
+    "label": "",
+    "building": "S",
+    "floorId": "0F",
+    "block": "SD",
+    "x": 244,
+    "y": 722
+  },
+  {
+    "id": "S_0F_SD_J_N",
+    "type": "junction",
+    "label": "",
+    "building": "S",
+    "floorId": "0F",
+    "block": "SD",
+    "x": 470,
+    "y": 722
+  },
+  {
+    "id": "S_0F_SD_J_NE",
+    "type": "junction",
+    "label": "",
+    "building": "S",
+    "floorId": "0F",
+    "block": "SD",
+    "x": 620,
+    "y": 722
   },
   {
     "id": "S_1F_SA136",
@@ -1759,7 +1819,7 @@ export const sNodes: MapNode[] = [
     "floorId": "2F",
     "block": "SC",
     "x": 640,
-    "y": 568
+    "y": 586
   },
   {
     "id": "S_2F_SC_J_E2",
@@ -1779,7 +1839,7 @@ export const sNodes: MapNode[] = [
     "floorId": "2F",
     "block": "SC",
     "x": 200,
-    "y": 568
+    "y": 586
   },
   {
     "id": "S_2F_SC_J_W2",
@@ -2799,7 +2859,7 @@ export const sNodes: MapNode[] = [
     "floorId": "3F",
     "block": "SC",
     "x": 640,
-    "y": 563
+    "y": 575
   },
   {
     "id": "S_3F_SC_J_E2",
@@ -2819,7 +2879,7 @@ export const sNodes: MapNode[] = [
     "floorId": "3F",
     "block": "SC",
     "x": 200,
-    "y": 563
+    "y": 575
   },
   {
     "id": "S_3F_SC_J_W2",
@@ -3098,8 +3158,8 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "3F",
     "block": "SA_SB",
-    "x": 641,
-    "y": 253
+    "x": 640,
+    "y": 240
   },
   {
     "id": "S_3F_EXIT_1F3F_SA_SB_W_J",
@@ -3108,8 +3168,8 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "3F",
     "block": "SA_SB",
-    "x": 201,
-    "y": 268
+    "x": 200,
+    "y": 280
   },
   {
     "id": "S_3F_EXIT_1F3F_SB_SC_W_J",
@@ -3118,8 +3178,8 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "3F",
     "block": "SB_SC",
-    "x": 201,
-    "y": 453
+    "x": 200,
+    "y": 440
   },
   {
     "id": "S_3F_EXIT_1F3F_SC_SD_E_J",
@@ -3128,8 +3188,8 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "3F",
     "block": "SC_SD",
-    "x": 641,
-    "y": 653
+    "x": 640,
+    "y": 640
   },
   {
     "id": "S_3F_SD_J_C1",
@@ -3449,7 +3509,7 @@ export const sNodes: MapNode[] = [
     "floorId": "4F",
     "block": "SA",
     "x": 640,
-    "y": 164
+    "y": 175
   },
   {
     "id": "S_4F_SA_J_E2",
@@ -3468,7 +3528,7 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "4F",
     "block": "SA",
-    "x": 210,
+    "x": 200,
     "y": 175
   },
   {
@@ -3639,7 +3699,7 @@ export const sNodes: MapNode[] = [
     "floorId": "4F",
     "block": "SB",
     "x": 200,
-    "y": 368
+    "y": 375
   },
   {
     "id": "S_4F_SB_J_W2",
@@ -3869,7 +3929,7 @@ export const sNodes: MapNode[] = [
     "floorId": "4F",
     "block": "SC",
     "x": 640,
-    "y": 563
+    "y": 575
   },
   {
     "id": "S_4F_SC_J_E2",
@@ -4269,7 +4329,7 @@ export const sNodes: MapNode[] = [
     "floorId": "4F",
     "block": "SD",
     "x": 199,
-    "y": 763
+    "y": 775
   },
   {
     "id": "S_4F_SD_J_W2",
@@ -4539,7 +4599,7 @@ export const sNodes: MapNode[] = [
     "floorId": "5F",
     "block": "SA",
     "x": 640,
-    "y": 163
+    "y": 175
   },
   {
     "id": "S_5F_SA_J_E2",
@@ -4558,7 +4618,7 @@ export const sNodes: MapNode[] = [
     "building": "S",
     "floorId": "5F",
     "block": "SA",
-    "x": 210,
+    "x": 200,
     "y": 175
   },
   {
@@ -4729,7 +4789,7 @@ export const sNodes: MapNode[] = [
     "floorId": "5F",
     "block": "SB",
     "x": 200,
-    "y": 368
+    "y": 375
   },
   {
     "id": "S_5F_SB_J_W2",
@@ -4959,7 +5019,7 @@ export const sNodes: MapNode[] = [
     "floorId": "5F",
     "block": "SC",
     "x": 640,
-    "y": 563
+    "y": 575
   },
   {
     "id": "S_5F_SC_J_E2",
@@ -5379,7 +5439,7 @@ export const sNodes: MapNode[] = [
     "floorId": "5F",
     "block": "SD",
     "x": 199,
-    "y": 763
+    "y": 775
   },
   {
     "id": "S_5F_SD_J_W2",

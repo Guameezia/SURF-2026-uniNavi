@@ -30,7 +30,8 @@ html, body, #root {
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-.app-header h1 {
+.app-header h1,
+.app-brand {
   font-size: 20px;
   font-weight: 600;
   color: #333;
@@ -38,25 +39,299 @@ html, body, #root {
   white-space: nowrap;
 }
 
+.app-brand {
+  letter-spacing: -0.02em;
+}
+
 .route-planner {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 16px;
   flex-wrap: wrap;
+  flex: 1;
 }
 
-.route-info {
+.route-planner-actions {
   display: flex;
-  gap: 16px;
-  font-size: 14px;
-  color: #666;
-  background: #f5f5f5;
-  padding: 8px 16px;
-  border-radius: 4px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-top: 22px;
 }
 
-.route-info strong {
-  color: #1976D2;
+.route-planner .btn-primary {
+  margin-top: 0;
+}
+
+.route-planner .debug-toggle {
+  margin-top: 0;
+}
+
+.route-inputs {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.route-inputs-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 22px;
+  padding-bottom: 22px;
+}
+
+.route-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.route-dot-start {
+  background: #4caf50;
+}
+
+.route-dot-end {
+  background: transparent;
+  border: 2px solid #1976d2;
+}
+
+.route-line {
+  width: 2px;
+  flex: 1;
+  min-height: 28px;
+  background: #e0e0e0;
+  margin: 4px 0;
+}
+
+.route-inputs-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.route-search-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 220px;
+}
+
+.route-search-label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.route-search-input {
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #f8f8f8;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.route-search-input:focus {
+  border-color: #1976d2;
+  background: #fff;
+}
+
+.route-suggestions {
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  list-style: none;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.route-suggestion-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+}
+
+.route-suggestion-item:hover {
+  background: #f5f5f5;
+}
+
+.route-suggestion-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.route-suggestion-label {
+  color: #333;
+}
+
+.route-suggestion-floor {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1565c0;
+  background: #e3f2fd;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+.route-suggestion-id {
+  font-size: 12px;
+  color: #aaa;
+  margin-left: 8px;
+}
+
+.route-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.route-summary-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #333;
+}
+
+.route-summary-from {
+  font-weight: 500;
+}
+
+.route-summary-sep {
+  color: #bbb;
+}
+
+.route-summary-to {
+  font-weight: 500;
+  color: #1976d2;
+}
+
+.route-type-picker {
+  display: flex;
+  border: 1px solid #1976d2;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.route-type-option {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #333;
+  transition: background 0.2s, color 0.2s;
+}
+
+.route-type-option.active {
+  background: #1976d2;
+  color: #fff;
+}
+
+.directions-sidebar {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  width: 320px;
+  max-height: calc(100% - 32px);
+  z-index: 100;
+}
+
+.directions-panel {
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+}
+
+.directions-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.directions-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.directions-panel-meta {
+  font-size: 12px;
+  color: #888;
+  margin-left: auto;
+}
+
+.directions-panel-chevron {
+  font-size: 10px;
+  color: #888;
+  margin-left: 4px;
+}
+
+.directions-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px 16px;
+  overflow-y: auto;
+  max-height: 360px;
+}
+
+.directions-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.directions-step-num {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1976d2;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.directions-step-text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #444;
+  padding-top: 1px;
 }
 
 /* 按钮样式 */
@@ -70,6 +345,8 @@ html, body, #root {
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.2s;
+  position: relative;
+  z-index: 300;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -119,7 +396,65 @@ html, body, #root {
 .map-container {
   flex: 1;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #f5f5f5;
+}
+
+.indoor-map-container {
+  position: relative;
+  width: 100%;
+  padding: 16px 0 24px;
+}
+
+.indoor-map-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.indoor-map-floor-label {
+  position: absolute;
+  top: 24px;
+  left: 16px;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 18px;
+  z-index: 10;
+}
+
+.indoor-map-debug-badge {
+  position: absolute;
+  top: 24px;
+  right: 80px;
+  background-color: rgba(255, 152, 0, 0.9);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 10;
+}
+
+.debug-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  margin-top: 26px;
+}
+
+.debug-toggle input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 
 /* 图例 */
@@ -182,9 +517,24 @@ html, body, #root {
     gap: 12px;
   }
 
-  .route-info {
+  .route-inputs {
     width: 100%;
-    justify-content: space-between;
+  }
+
+  .route-search-field {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .route-summary {
+    width: 100%;
+  }
+
+  .directions-sidebar {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    bottom: 8px;
   }
 
   .legend {

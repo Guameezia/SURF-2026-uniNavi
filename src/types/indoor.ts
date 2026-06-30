@@ -49,6 +49,8 @@ export interface MapEdge {
   distance: number;
   edgeType: EdgeType;
   directionHint: DirectionHint | string;
+  /** 中间折点（draw.io 页面坐标），用于让边贴合真实浅灰色可行走走廊 */
+  waypoints?: MapPoint[];
 }
 
 // POI（兴趣点）
@@ -101,20 +103,50 @@ export interface RouteResult {
   found: boolean;
 }
 
+// 路线模式
+export type RouteMode = "comfort" | "fast";
+
+// 含分步指引的完整路线
+export interface ComputedRoute extends RouteResult {
+  steps: string[];
+}
+
+// UI 阶段
+export type NavigationUIPhase = "idle" | "navigating";
+
 // 楼层顺序常量
 export const FLOOR_ORDER: FloorId[] = ["0F", "1F", "2F", "3F", "4F", "5F"];
 
-// 地图视口配置（各楼层）
-export interface MapViewBox {
+// draw.io 页面坐标 → 楼层 SVG viewBox 的变换配置
+export interface FloorMapConfig {
+  /** SVG viewBox 宽度 */
   width: number;
+  /** SVG viewBox 高度 */
   height: number;
+  /** 页面坐标 X 偏移（svgX = pageX - offsetX） */
+  offsetX: number;
+  /** 页面坐标 Y 偏移（svgY = pageY - offsetY） */
+  offsetY: number;
 }
 
-export const MAP_VIEWBOX: Record<FloorId, MapViewBox> = {
-  "0F": { width: 850, height: 950 },
-  "1F": { width: 850, height: 950 },
-  "2F": { width: 850, height: 950 },
-  "3F": { width: 850, height: 950 },
-  "4F": { width: 850, height: 950 },
-  "5F": { width: 850, height: 950 },
+// offsetX / offsetY 直接取每层 draw.io 内容包围盒左上角（= mxGeometry 最小 x/y），
+// 与渲染出的 SVG viewBox 原点对齐，无需再用 POINT_NUDGE 做大幅补偿。
+export const FLOOR_MAP_CONFIG: Record<FloorId, FloorMapConfig> = {
+  "0F": { width: 760, height: 720, offsetX: 80, offsetY: 120 },
+  "1F": { width: 560, height: 680, offsetX: 140, offsetY: 120 },
+  "2F": { width: 520, height: 690, offsetX: 160, offsetY: 120 },
+  "3F": { width: 522, height: 681, offsetX: 160, offsetY: 120 },
+  "4F": { width: 522, height: 681, offsetX: 160, offsetY: 120 },
+  "5F": { width: 521, height: 681, offsetX: 160, offsetY: 120 },
 };
+
+/** @deprecated 使用 FLOOR_MAP_CONFIG */
+export type MapViewBox = Pick<FloorMapConfig, "width" | "height">;
+
+/** @deprecated 使用 FLOOR_MAP_CONFIG */
+export const MAP_VIEWBOX: Record<FloorId, MapViewBox> = Object.fromEntries(
+  Object.entries(FLOOR_MAP_CONFIG).map(([floor, config]) => [
+    floor,
+    { width: config.width, height: config.height },
+  ])
+) as Record<FloorId, MapViewBox>;

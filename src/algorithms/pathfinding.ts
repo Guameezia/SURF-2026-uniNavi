@@ -10,8 +10,12 @@ import type {
   MapPoint,
   FloorId,
   EdgeType,
+  RouteMode,
+  ComputedRoute,
 } from "../types/indoor";
 import { FLOOR_ORDER } from "../data";
+import { getEdge } from "./graph";
+import { buildRouteSteps } from "./routePresenter";
 
 /**
  * 优先队列（最小堆）
@@ -199,6 +203,303 @@ function splitByFloor(path: string[], graph: Graph): RouteSegment[] {
   });
 
   return segments;
+}
+
+// --- Comfort / Fast 竖井路由（对齐 uni-navi-ios DijkstraRouter）---
+
+type ShaftKind =
+  | "elevator"
+  | "stair"
+  | "externalZeroFloorStair"
+  | "thirdFloorExit";
+
+interface Shaft {
+  nodesByFloor: Record<string, string>;
+  kind: ShaftKind;
+}
+
+function getShaftKind(nodeIds: string[], transportType: EdgeType): ShaftKind {
+  for (const id of nodeIds) {
+    if (id.includes("EXIT_1F3F")) return "thirdFloorExit";
+    if (id.includes("EXT_STAIR_")) return "externalZeroFloorStair";
+  }
+  return transportType === "elevator" ? "elevator" : "stair";
+}
+
+function modePriority(mode: RouteMode, kind: ShaftKind): number {
+  if (mode === "comfort") {
+    switch (kind) {
+      case "elevator":
+        return 0;
+      case "stair":
+      case "externalZeroFloorStair":
+        return 1;
+      case "thirdFloorExit":
+        return 3;
+    }
+  }
+  switch (kind) {
+    case "stair":
+    case "externalZeroFloorStair":
+      return 0;
+    case "thirdFloorExit":
+      return 2;
+    case "elevator":
+      return 3;
+  }
+}
+
+function identifyShafts(graph: Graph, transportType: EdgeType): Shaft[] {
+  const vertAdj: Record<string, string[]> = {};
+  for (const e of graph.edges) {
+    if (e.edgeType !== transportType) continue;
+    if (!vertAdj[e.from]) vertAdj[e.from] = [];
+    if (!vertAdj[e.to]) vertAdj[e.to] = [];
+    vertAdj[e.from].push(e.to);
+    vertAdj[e.to].push(e.from);
+  }
+
+  const visited = new Set<string>();
+  const shafts: Shaft[] = [];
+
+  for (const startNode of Object.keys(vertAdj)) {
+    if (visited.has(startNode)) continue;
+
+    const component: string[] = [];
+    const queue = [startNode];
+    visited.add(startNode);
+
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      component.push(cur);
+      for (const neighbor of vertAdj[cur] ?? []) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push(neighbor);
+        }
+      }
+    }
+
+    const nodesByFloor: Record<string, string> = {};
+    for (const nodeId of component) {
+      const node = graph.nodesById[nodeId];
+      if (node) nodesByFloor[node.floorId] = nodeId;
+    }
+
+    shafts.push({
+      nodesByFloor,
+      kind: getShaftKind(component, transportType),
+    });
+  }
+
+  return shafts;
+}
+
+function getShaftPath(
+  graph: Graph,
+  shaft: Shaft,
+  fromFloor: string,
+  toFloor: string
+): { path: string[]; distance: number } {
+  const floors = Object.keys(shaft.nodesByFloor).sort(
+    (a, b) => FLOOR_ORDER.indexOf(a as FloorId) - FLOOR_ORDER.indexOf(b as FloorId)
+  );
+
+  const fromIdx = floors.indexOf(fromFloor);
+  const toIdx = floors.indexOf(toFloor);
+  if (fromIdx < 0 || toIdx < 0) return { path: [], distance: Infinity };
+
+  const step = fromIdx < toIdx ? 1 : -1;
+  const path: string[] = [];
+  let distance = 0;
+
+  let i = fromIdx;
+  while (true) {
+    const nodeId = shaft.nodesByFloor[floors[i]]!;
+    path.push(nodeId);
+    if (i !== fromIdx) {
+      const prevIdx = i - step;
+      const prevId = shaft.nodesByFloor[floors[prevIdx]]!;
+      const edge = getEdge(graph, prevId, nodeId);
+      distance += edge?.distance ?? 20;
+    }
+    if (i === toIdx) break;
+    i += step;
+  }
+
+  return { path, distance };
+}
+
+function combinePaths(...paths: string[][]): string[] {
+  const result: string[] = [];
+  for (const path of paths) {
+    if (path.length === 0) continue;
+    if (result.length === 0) {
+      result.push(...path);
+    } else {
+      result.push(...path.slice(1));
+    }
+  }
+  return result;
+}
+
+function buildRouteResult(
+  graph: Graph,
+  startNodeId: string,
+  endNodeId: string,
+  path: string[],
+  distance: number
+): ComputedRoute {
+  const segments = splitByFloor(path, graph);
+  return {
+    startNodeId,
+    endNodeId,
+    nodeIds: path,
+    distance,
+    segments,
+    found: path.length > 0,
+    steps: buildRouteSteps(path, graph),
+  };
+}
+
+/**
+ * 按模式寻找优选路线（comfort 优先电梯，fast 优先楼梯）
+ */
+export function findPreferredRoute(
+  graph: Graph,
+  startNodeId: string,
+  endNodeId: string,
+  mode: RouteMode
+): ComputedRoute {
+  const empty = buildRouteResult(graph, startNodeId, endNodeId, [], Infinity);
+  empty.found = false;
+  empty.distance = 0;
+  empty.steps = [];
+
+  const startNode = graph.nodesById[startNodeId];
+  const endNode = graph.nodesById[endNodeId];
+  if (!startNode || !endNode) return empty;
+
+  if (startNode.floorId === endNode.floorId) {
+    const { path, distance } = dijkstra(graph, startNodeId, endNodeId, [
+      "elevator",
+      "stairs",
+    ]);
+    return buildRouteResult(graph, startNodeId, endNodeId, path, distance);
+  }
+
+  const shafts = [
+    ...identifyShafts(graph, "elevator"),
+    ...identifyShafts(graph, "stairs"),
+  ];
+
+  let best: {
+    path: string[];
+    distance: number;
+    priority: number;
+  } | null = null;
+
+  for (const shaft of shafts) {
+    if (shaft.kind === "externalZeroFloorStair" && endNode.floorId !== "0F") {
+      continue;
+    }
+
+    const entryId = shaft.nodesByFloor[startNode.floorId];
+    const exitId = shaft.nodesByFloor[endNode.floorId];
+    if (!entryId || !exitId) continue;
+
+    const leg1 = dijkstra(graph, startNodeId, entryId, ["elevator", "stairs"]);
+    if (leg1.distance === Infinity) continue;
+
+    const leg2 = getShaftPath(
+      graph,
+      shaft,
+      startNode.floorId,
+      endNode.floorId
+    );
+    if (leg2.distance === Infinity) continue;
+
+    const leg3 = dijkstra(graph, exitId, endNodeId, ["elevator", "stairs"]);
+    if (leg3.distance === Infinity) continue;
+
+    const totalDist = leg1.distance + leg2.distance + leg3.distance;
+    const priority = modePriority(mode, shaft.kind);
+    const combined = combinePaths(leg1.path, leg2.path, leg3.path);
+
+    let isBetter = false;
+    if (!best) {
+      isBetter = true;
+    } else if (mode === "fast") {
+      isBetter =
+        totalDist < best.distance ||
+        (totalDist === best.distance && priority < best.priority);
+    } else {
+      isBetter =
+        priority < best.priority ||
+        (priority === best.priority && totalDist < best.distance);
+    }
+
+    if (isBetter) {
+      best = { path: combined, distance: totalDist, priority };
+    }
+  }
+
+  if (!best) return empty;
+  return buildRouteResult(
+    graph,
+    startNodeId,
+    endNodeId,
+    best.path,
+    best.distance
+  );
+}
+
+export interface DualRouteResult {
+  comfort: ComputedRoute;
+  fast: ComputedRoute;
+  hasMultipleRoutes: boolean;
+}
+
+/**
+ * 同时计算舒适与快速两种方案
+ */
+export function findDualRoutes(
+  graph: Graph,
+  startNodeId: string,
+  endNodeId: string
+): DualRouteResult {
+  const startNode = graph.nodesById[startNodeId];
+  const endNode = graph.nodesById[endNodeId];
+
+  if (!startNode || !endNode) {
+    const empty = buildRouteResult(graph, startNodeId, endNodeId, [], 0);
+    empty.found = false;
+    empty.steps = [];
+    return {
+      comfort: empty,
+      fast: { ...empty, steps: [] },
+      hasMultipleRoutes: false,
+    };
+  }
+
+  if (startNode.floorId === endNode.floorId) {
+    const route = findPreferredRoute(graph, startNodeId, endNodeId, "comfort");
+    return {
+      comfort: route,
+      fast: route,
+      hasMultipleRoutes: false,
+    };
+  }
+
+  const comfort = findPreferredRoute(graph, startNodeId, endNodeId, "comfort");
+  const fast = findPreferredRoute(graph, startNodeId, endNodeId, "fast");
+
+  const hasMultipleRoutes =
+    comfort.found &&
+    fast.found &&
+    comfort.nodeIds.join("|") !== fast.nodeIds.join("|");
+
+  return { comfort, fast, hasMultipleRoutes };
 }
 
 /**
