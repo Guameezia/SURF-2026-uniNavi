@@ -32,6 +32,8 @@ interface IndoorMapSVGProps {
   debugMode?: boolean;
   showJunctions?: boolean;
   showLabels?: boolean;
+  /** 叠加在底图上的 SVG 内容（如 0F 房间热区） */
+  mapOverlay?: React.ReactNode;
 }
 
 export const IndoorMapSVG: React.FC<IndoorMapSVGProps> = ({
@@ -39,6 +41,7 @@ export const IndoorMapSVG: React.FC<IndoorMapSVGProps> = ({
   debugMode = false,
   showJunctions = false,
   showLabels = true,
+  mapOverlay,
 }) => {
   const { graph, currentFloorId, selectedPOIId, routeResult, selectPOI } =
     useMapStore();
@@ -246,6 +249,9 @@ export const IndoorMapSVG: React.FC<IndoorMapSVGProps> = ({
           {renderRoute()}
           <g className="nodes-layer">{renderNodes()}</g>
         </g>
+        {mapOverlay && (
+          <g className="map-custom-overlay">{mapOverlay}</g>
+        )}
       </svg>
 
       <div className="indoor-map-floor-label">{activeFloorId}</div>

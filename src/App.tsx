@@ -12,6 +12,8 @@ import { RouteTypePicker } from "./components/navigation/RouteTypePicker";
 import { createGraph, getPOINodes, getFloors } from "./algorithms/graph";
 import { findDualRoutes } from "./algorithms/pathfinding";
 import { filterPOISuggestions, resolvePOINodeId } from "./utils/poiSearch";
+import { Floor0Viewport } from "./components/explore/Floor0Viewport";
+import { useExploreStore } from "./store/exploreStore";
 import { sNodes, sEdges } from "./data";
 import type { POI } from "./types/indoor";
 import "./App.css";
@@ -31,6 +33,7 @@ function App() {
     hasMultipleRoutes,
     uiPhase,
     error,
+    currentFloorId,
   } = useMapStore();
 
   const [startQuery, setStartQuery] = useState("");
@@ -118,6 +121,7 @@ function App() {
       return;
     }
 
+    useExploreStore.getState().exitToFloorMap();
     setDualRoutes(comfort, fast, multi);
     setDirectionsExpanded(true);
     setActiveField(null);
@@ -239,7 +243,11 @@ function App() {
         </aside>
 
         <div className="map-container">
-          <IndoorMapSVG debugMode={debugMode} />
+          {currentFloorId === "0F" ? (
+            <Floor0Viewport debugMode={debugMode} />
+          ) : (
+            <IndoorMapSVG debugMode={debugMode} />
+          )}
         </div>
 
         {isNavigating && routeResult?.found && steps.length > 0 && (
