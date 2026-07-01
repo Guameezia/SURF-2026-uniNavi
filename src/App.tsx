@@ -4,7 +4,6 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useMapStore } from "./store/mapStore";
-import { IndoorMapSVG } from "./components/map/IndoorMapSVG";
 import { FloorSelector } from "./components/map/FloorSelector";
 import { RouteSearchField, getPOISearchDisplay } from "./components/navigation/RouteSearchField";
 import { DirectionsPanel } from "./components/navigation/DirectionsPanel";
@@ -12,8 +11,7 @@ import { RouteTypePicker } from "./components/navigation/RouteTypePicker";
 import { createGraph, getPOINodes, getFloors } from "./algorithms/graph";
 import { findDualRoutes } from "./algorithms/pathfinding";
 import { filterPOISuggestions, resolvePOINodeId } from "./utils/poiSearch";
-import { Floor0Viewport } from "./components/explore/Floor0Viewport";
-import { useExploreStore } from "./store/exploreStore";
+import { MapView } from "./components/map/MapView";
 import { sNodes, sEdges } from "./data";
 import type { POI } from "./types/indoor";
 import "./App.css";
@@ -26,14 +24,12 @@ function App() {
     setDualRoutes,
     beginEditingRoute,
     setRouteMode,
-    routeResult,
     comfortRoute,
     fastRoute,
     selectedRouteMode,
     hasMultipleRoutes,
     uiPhase,
     error,
-    currentFloorId,
   } = useMapStore();
 
   const [startQuery, setStartQuery] = useState("");
@@ -121,7 +117,6 @@ function App() {
       return;
     }
 
-    useExploreStore.getState().exitToFloorMap();
     setDualRoutes(comfort, fast, multi);
     setDirectionsExpanded(true);
     setActiveField(null);
@@ -145,59 +140,86 @@ function App() {
       <header className="app-header">
         <h1 className="app-brand">UniNavi</h1>
 
-        {!isNavigating ? (
-          <div className="route-planner">
-            <div className="route-inputs">
-              <div className="route-inputs-indicator" aria-hidden>
-                <span className="route-dot route-dot-start" />
-                <span className="route-line" />
-                <span className="route-dot route-dot-end" />
+        <div className="route-planner-section">
+          {!isNavigating ? (
+            <div className="route-planner">
+              <div className="route-inputs">
+                <div className="route-inputs-indicator" aria-hidden>
+                  <span className="route-dot route-dot-start" />
+                  <span className="route-line" />
+                  <span className="route-dot route-dot-end" />
+                </div>
+                <div className="route-inputs-fields">
+                  <RouteSearchField
+                    label="From"
+                    placeholder="e.g., SA169"
+                    value={startQuery}
+                    suggestions={startSuggestions}
+                    allPois={pois}
+                    showSuggestions={activeField === "start" && !selectedStartId}
+                    onChange={handleStartChange}
+                    onSelect={handleSelectStart}
+                    onFocus={() => setActiveField("start")}
+                    onBlur={() =>
+                      setTimeout(
+                        () => setActiveField((f) => (f === "start" ? null : f)),
+                        150
+                      )
+                    }
+                  />
+                  <RouteSearchField
+                    label="To"
+                    placeholder="e.g., SA321"
+                    value={endQuery}
+                    suggestions={endSuggestions}
+                    allPois={pois}
+                    showSuggestions={activeField === "end" && !selectedEndId}
+                    onChange={handleEndChange}
+                    onSelect={handleSelectEnd}
+                    onFocus={() => setActiveField("end")}
+                    onBlur={() =>
+                      setTimeout(
+                        () => setActiveField((f) => (f === "end" ? null : f)),
+                        150
+                      )
+                    }
+                  />
+                </div>
               </div>
-              <div className="route-inputs-fields">
-                <RouteSearchField
-                  label="From"
-                  placeholder="e.g., SA169"
-                  value={startQuery}
-                  suggestions={startSuggestions}
-                  allPois={pois}
-                  showSuggestions={activeField === "start" && !selectedStartId}
-                  onChange={handleStartChange}
-                  onSelect={handleSelectStart}
-                  onFocus={() => setActiveField("start")}
-                  onBlur={() =>
-                    setTimeout(
-                      () => setActiveField((f) => (f === "start" ? null : f)),
-                      150
-                    )
-                  }
-                />
-                <RouteSearchField
-                  label="To"
-                  placeholder="e.g., SA321"
-                  value={endQuery}
-                  suggestions={endSuggestions}
-                  allPois={pois}
-                  showSuggestions={activeField === "end" && !selectedEndId}
-                  onChange={handleEndChange}
-                  onSelect={handleSelectEnd}
-                  onFocus={() => setActiveField("end")}
-                  onBlur={() =>
-                    setTimeout(
-                      () => setActiveField((f) => (f === "end" ? null : f)),
-                      150
-                    )
-                  }
-                />
+              <div className="route-planner-actions">
+                <button
+                  onMouseDown={() => setActiveField(null)}
+                  onClick={handlePlanRoute}
+                  disabled={!startQuery.trim() || !endQuery.trim()}
+                  className="btn-primary"
+                >
+                  Plan
+                </button>
+                <label className="debug-toggle">
+                  <input
+                    type="checkbox"
+                    checked={debugMode}
+                    onChange={(e) => setDebugMode(e.target.checked)}
+                  />
+                  调试模式
+                </label>
               </div>
             </div>
-            <div className="route-planner-actions">
-              <button
-                onMouseDown={() => setActiveField(null)}
-                onClick={handlePlanRoute}
-                disabled={!startQuery.trim() || !endQuery.trim()}
-                className="btn-primary"
-              >
-                Plan
+          ) : (
+            <div className="route-summary">
+              <div className="route-summary-text">
+                <span className="route-summary-from">{startQuery}</span>
+                <span className="route-summary-sep">—</span>
+                <span className="route-summary-to">{endQuery}</span>
+              </div>
+              {hasMultipleRoutes && (
+                <RouteTypePicker
+                  selected={selectedRouteMode}
+                  onSelect={setRouteMode}
+                />
+              )}
+              <button onClick={handleEdit} className="btn-secondary">
+                Edit
               </button>
               <label className="debug-toggle">
                 <input
@@ -208,31 +230,16 @@ function App() {
                 调试模式
               </label>
             </div>
-          </div>
-        ) : (
-          <div className="route-summary">
-            <div className="route-summary-text">
-              <span className="route-summary-from">{startQuery}</span>
-              <span className="route-summary-sep">—</span>
-              <span className="route-summary-to">{endQuery}</span>
-            </div>
-            {hasMultipleRoutes && (
-              <RouteTypePicker
-                selected={selectedRouteMode}
-                onSelect={setRouteMode}
-              />
-            )}
-            <button onClick={handleEdit} className="btn-secondary">
-              Edit
-            </button>
-            <label className="debug-toggle">
-              <input
-                type="checkbox"
-                checked={debugMode}
-                onChange={(e) => setDebugMode(e.target.checked)}
-              />
-              调试模式
-            </label>
+          )}
+        </div>
+
+        {isNavigating && steps.length > 0 && (
+          <div className="directions-header-slot">
+            <DirectionsPanel
+              steps={steps}
+              expanded={directionsExpanded}
+              onToggle={() => setDirectionsExpanded((v) => !v)}
+            />
           </div>
         )}
       </header>
@@ -242,23 +249,7 @@ function App() {
           <FloorSelector />
         </aside>
 
-        <div className="map-container">
-          {currentFloorId === "0F" ? (
-            <Floor0Viewport debugMode={debugMode} />
-          ) : (
-            <IndoorMapSVG debugMode={debugMode} />
-          )}
-        </div>
-
-        {isNavigating && routeResult?.found && steps.length > 0 && (
-          <aside className="directions-sidebar">
-            <DirectionsPanel
-              steps={steps}
-              expanded={directionsExpanded}
-              onToggle={() => setDirectionsExpanded((v) => !v)}
-            />
-          </aside>
-        )}
+        <MapView debugMode={debugMode} />
       </main>
 
       {debugMode && (

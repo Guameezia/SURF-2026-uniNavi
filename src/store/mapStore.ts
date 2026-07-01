@@ -18,6 +18,10 @@ interface MapState {
   // 状态
   floors: Floor[];
   currentFloorId: FloorId;
+  /** 切层后一次性聚焦到该导航节点（整层 CAD 模式） */
+  floorFocusNodeId: string | null;
+  /** 切层后进入的分房间 id（分房间模式，优先于 floorFocusNodeId） */
+  floorEntryRoomId: string | null;
   selectedPOIId: string | null;
   routeResult: RouteResult | null;
   graph: Graph | null;
@@ -37,6 +41,13 @@ interface MapState {
   // Actions
   initializeMap: (graph: Graph, pois: POI[], floors: Floor[]) => void;
   setCurrentFloor: (floorId: FloorId) => void;
+  transitionToFloor: (
+    floorId: FloorId,
+    focusNodeId?: string | null,
+    entryRoomId?: string | null
+  ) => void;
+  clearFloorFocus: () => void;
+  clearFloorEntry: () => void;
   selectPOI: (poiId: string | null) => void;
   setRoute: (result: RouteResult) => void;
   setDualRoutes: (
@@ -53,7 +64,9 @@ interface MapState {
 export const useMapStore = create<MapState>((set, get) => ({
   // 初始状态
   floors: [],
-  currentFloorId: "1F",
+  currentFloorId: "0F",
+  floorFocusNodeId: null,
+  floorEntryRoomId: null,
   selectedPOIId: null,
   routeResult: null,
   graph: null,
@@ -68,11 +81,12 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   // 初始化地图
   initializeMap: (graph, pois, floors) => {
+    const prefer0F = floors.find((f) => f.id === "0F");
     set({
       graph,
       pois,
       floors,
-      currentFloorId: floors.length > 0 ? floors[0].id : "1F",
+      currentFloorId: prefer0F?.id ?? (floors.length > 0 ? floors[0].id : "0F"),
       isLoading: false,
       error: null,
     });
@@ -80,7 +94,27 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   // 切换楼层
   setCurrentFloor: (floorId) => {
-    set({ currentFloorId: floorId });
+    set({
+      currentFloorId: floorId,
+      floorFocusNodeId: null,
+      floorEntryRoomId: null,
+    });
+  },
+
+  transitionToFloor: (floorId, focusNodeId = null, entryRoomId = null) => {
+    set({
+      currentFloorId: floorId,
+      floorEntryRoomId: entryRoomId ?? null,
+      floorFocusNodeId: entryRoomId ? null : (focusNodeId ?? null),
+    });
+  },
+
+  clearFloorFocus: () => {
+    set({ floorFocusNodeId: null });
+  },
+
+  clearFloorEntry: () => {
+    set({ floorEntryRoomId: null });
   },
 
   // 选择 POI

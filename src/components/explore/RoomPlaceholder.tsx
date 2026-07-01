@@ -5,9 +5,8 @@ interface RoomPlaceholderProps {
 }
 
 export function RoomPlaceholder({ room }: RoomPlaceholderProps) {
-  const { viewWidth: w, viewHeight: h, label, interior } = room;
-  const variant = interior.placeholderVariant ?? "classroom";
-  const isCanteen = variant === "canteen";
+  const { viewWidth: w, viewHeight: h, label } = room;
+  const isCanteen = room.id.includes("canteen");
 
   return (
     <svg

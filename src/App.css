@@ -24,10 +24,12 @@ html, body, #root {
   border-bottom: 1px solid #e0e0e0;
   padding: 12px 20px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 24px;
   flex-wrap: wrap;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  position: relative;
+  z-index: 200;
 }
 
 .app-header h1,
@@ -41,6 +43,27 @@ html, body, #root {
 
 .app-brand {
   letter-spacing: -0.02em;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.route-planner-section {
+  flex-shrink: 0;
+}
+
+.directions-header-slot {
+  margin-left: auto;
+  width: min(400px, 100%);
+  flex-shrink: 0;
+}
+
+.directions-header-slot .directions-panel {
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.directions-header-slot .directions-steps {
+  max-height: 140px;
 }
 
 .route-planner {
@@ -48,7 +71,6 @@ html, body, #root {
   align-items: flex-start;
   gap: 16px;
   flex-wrap: wrap;
-  flex: 1;
 }
 
 .route-planner-actions {
@@ -202,7 +224,6 @@ html, body, #root {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  flex: 1;
 }
 
 .route-summary-text {
@@ -250,12 +271,7 @@ html, body, #root {
 }
 
 .directions-sidebar {
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
-  width: 320px;
-  max-height: calc(100% - 32px);
-  z-index: 100;
+  display: none;
 }
 
 .directions-panel {
@@ -524,6 +540,19 @@ html, body, #root {
   .route-search-field {
     min-width: 0;
     flex: 1;
+  }
+
+  .route-planner-section {
+    width: 100%;
+  }
+
+  .directions-header-slot {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .directions-header-slot .directions-steps {
+    max-height: 200px;
   }
 
   .route-summary {
@@ -934,4 +963,149 @@ html, body, #root {
   width: 100%;
   height: auto;
   aspect-ratio: 760 / 720;
+}
+
+/* —— 分房间导航（方向键 + 上下楼） —— */
+
+.room-map-view .room-map-stage {
+  position: relative;
+  width: 640px;
+  max-width: min(640px, 100%);
+  flex-shrink: 0;
+}
+
+.room-map-image {
+  display: block;
+  width: 640px;
+  max-width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.room-map-view .gather-map-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: transparent;
+}
+
+.room-map-view .gather-map-overlay .leaf-note-marker,
+.room-map-view .gather-map-overlay .viewpoint-marker {
+  pointer-events: all;
+}
+
+.room-map-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #888;
+}
+
+.dir-pad {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: grid;
+  grid-template-columns: 52px 52px 52px;
+  grid-template-rows: 40px 40px 40px;
+  grid-template-areas:
+    ". up ."
+    "left center right"
+    ". down .";
+  gap: 6px;
+}
+
+.dir-pad-btn {
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #1976d2;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: background 0.15s;
+}
+
+.dir-pad-btn:hover {
+  background: rgba(25, 118, 210, 0.08);
+  border-color: #1976d2;
+}
+
+.dir-pad-center {
+  grid-area: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #888;
+  font-weight: 600;
+}
+
+.dir-pad-center--vertical {
+  flex-direction: column;
+  gap: 3px;
+  padding: 2px;
+  width: 100%;
+  height: 100%;
+}
+
+.dir-pad-vertical-btn {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.1;
+  border: 2px solid #1976d2;
+  border-radius: 8px;
+  background: #1976d2;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.dir-pad-vertical-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.dir-pad-vertical-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: #fff;
+  color: #888;
+  border-color: #e0e0e0;
+}
+
+.dir-pad-vertical-btn--down {
+  background: #6b5344;
+  border-color: #6b5344;
+}
+
+.dir-pad-vertical-btn--down:disabled {
+  background: #fff;
+  border-color: #e0e0e0;
+}
+
+.dir-pad--shaft .dir-pad-center--vertical {
+  border: 2px dashed #1976d2;
+  border-radius: 10px;
+  background: rgba(25, 118, 210, 0.06);
+}
+
+.dir-pad-empty {
+  display: block;
+}
+
+.minimap-route-layer {
+  pointer-events: none;
 }

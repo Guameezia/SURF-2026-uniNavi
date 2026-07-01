@@ -13,7 +13,7 @@ import { MinimapWidget } from "./MinimapWidget";
 import { LeafToolbar } from "./LeafToolbar";
 import { LeafMarker } from "./LeafIcon";
 import { LeafNoteSheet, type LeafNoteSheetMode } from "./LeafNoteSheet";
-import { getExploreRooms } from "../../data/roomConfig";
+import { getRoomsForFloor } from "../../data/roomConfig";
 
 const BUILDING_ID = "S";
 const ZOOM = { min: 0.5, max: 3, step: 0.15 };
@@ -42,7 +42,7 @@ export function RoomInteriorView({ room }: RoomInteriorViewProps) {
 
   const canvasW = room.viewWidth;
   const canvasH = room.viewHeight;
-  const allRooms = getExploreRooms(room.floorId);
+  const allRooms = getRoomsForFloor(room.floorId).filter((r) => r.imageSrc);
 
   const roomNotes = useMemo(
     () =>
@@ -164,11 +164,10 @@ export function RoomInteriorView({ room }: RoomInteriorViewProps) {
       : "";
 
   const renderInterior = () => {
-    const { interior } = room;
-    if (interior.type === "image" && interior.imageSrc) {
+    if (room.imageSrc) {
       return (
         <image
-          href={interior.imageSrc}
+          href={room.imageSrc}
           x={0}
           y={0}
           width={canvasW}
@@ -308,6 +307,7 @@ export function RoomInteriorView({ room }: RoomInteriorViewProps) {
       </div>
 
       <MinimapWidget
+        floorId={room.floorId}
         rooms={allRooms}
         currentRoomId={room.id}
         onBackToMap={exitToFloorMap}
