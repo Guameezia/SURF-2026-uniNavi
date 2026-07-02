@@ -4,9 +4,7 @@
 import type { FloorId, Graph, RouteResult } from "../types/indoor";
 import type { Direction, OverviewRect } from "../types/room";
 import {
-  ELEVATOR_FLOOR_LINKS,
-  SHAFT_FLOOR_LINKS,
-  STAIR_FLOOR_LINKS,
+  VERTICAL_SHAFTS,
 } from "../data/floorPortals";
 import {
   getRoomById,
@@ -31,28 +29,13 @@ function buildExplicitNodeRoomMap(): Map<string, string> {
 
   const map = new Map<string, string>();
 
-  for (const link of STAIR_FLOOR_LINKS) {
-    map.set(link.node0F, link.room0F);
-    map.set(link.node1FStair, `1f-${link.room0F}`);
-    map.set(link.node1FCorridor, link.room1F);
-  }
-
-  for (const link of ELEVATOR_FLOOR_LINKS) {
-    map.set(link.node0F, link.room0F);
-    map.set(link.node1F, `1f-${link.room0F}`);
-    map.set(link.node1FCorridor, link.room1F);
-  }
-
-  for (const link of SHAFT_FLOOR_LINKS) {
-    map.set(link.node0FStair, link.room0F);
-    if ("node0FElev" in link && link.node0FElev) {
-      map.set(link.node0FElev, link.room0F);
+  for (const shaft of VERTICAL_SHAFTS) {
+    for (const binding of shaft.floors) {
+      map.set(binding.nodeId, binding.roomId);
+      if (binding.corridorNodeId && binding.corridorRoomId) {
+        map.set(binding.corridorNodeId, binding.corridorRoomId);
+      }
     }
-    map.set(link.node1FStair, `1f-${link.room0F}`);
-    if ("node1FElev" in link && link.node1FElev) {
-      map.set(link.node1FElev, `1f-${link.room0F}`);
-    }
-    map.set(link.node1FCorridor, link.room1F);
   }
 
   explicitNodeRoomCache = map;
