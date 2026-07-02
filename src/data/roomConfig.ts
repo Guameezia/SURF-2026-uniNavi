@@ -8,9 +8,14 @@
 
 import type { FloorId } from "../types/indoor";
 import type { RoomDef, ViewpointDef, StairFloorLink, ElevatorFloorLink, FloorPortal } from "../types/room";
-import { getFloorModelOffset } from "./mapConfig";
+import { BUILDING_ID, getFloorModelOffset } from "./floorGeometry";
+import {
+  ELEVATOR_FLOOR_LINKS,
+  SHAFT_FLOOR_LINKS,
+  STAIR_FLOOR_LINKS,
+} from "./floorPortals";
 
-const BUILDING = "S";
+const BUILDING = BUILDING_ID;
 const ROOM_VIEW = { viewWidth: 640, viewHeight: 400 };
 
 export const FLOOR_0F_OVERVIEW = {
@@ -29,95 +34,8 @@ export function getFloorOverview(floorId: FloorId) {
   return floorId === "1F" ? FLOOR_1F_OVERVIEW : FLOOR_0F_OVERVIEW;
 }
 
-/**
- * 0F 楼梯 room ↔ 1F 楼梯节点 ↔ 1F 走廊 junction ↔ 1F 走廊 room
- * 楼梯与走廊的连接关系见 edges.ts（如 S_1F_SA_STAIR_W → S_1F_SA_J_W）
- */
-export const STAIR_FLOOR_LINKS: StairFloorLink[] = [
-  {
-    room0F: "sa-stair-west",
-    node0F: "S_0F_SA_STAIR_W",
-    node1FStair: "S_1F_SA_STAIR_W",
-    node1FCorridor: "S_1F_SA_J_W",
-    room1F: "1f-sa-corridor-west",
-  },
-  {
-    room0F: "sa-stair-east",
-    node0F: "S_0F_SA_STAIR_E",
-    node1FStair: "S_1F_SA_STAIR_E",
-    node1FCorridor: "S_1F_SA_J_E",
-    room1F: "1f-sa-corridor-east",
-  },
-  {
-    room0F: "sb-stair-west",
-    node0F: "S_0F_SB_STAIR_W",
-    node1FStair: "S_1F_SB_STAIR_W",
-    node1FCorridor: "S_1F_SB_J_W",
-    room1F: "1f-sb-corridor-west",
-  },
-  {
-    room0F: "sb-stair-east",
-    node0F: "S_0F_SB_STAIR_E",
-    node1FStair: "S_1F_SB_STAIR_E",
-    node1FCorridor: "S_1F_SB_J_E",
-    room1F: "1f-sb-corridor-east",
-  },
-  {
-    room0F: "sc-stair-west",
-    node0F: "S_0F_SC_STAIR_W",
-    node1FStair: "S_1F_SC_STAIR_W",
-    node1FCorridor: "S_1F_SC_J_W",
-    room1F: "1f-sc-corridor-west",
-  },
-  {
-    room0F: "sd-stair-west",
-    node0F: "S_0F_SD_STAIR_W",
-    node1FStair: "S_1F_SD_STAIR_W",
-    node1FCorridor: "S_1F_SD_J_W",
-    room1F: "1f-sd-corridor-west",
-  },
-];
-
-/** 0F 电梯 room ↔ 1F 走廊（电梯井与楼梯井分列时用） */
-export const ELEVATOR_FLOOR_LINKS: ElevatorFloorLink[] = [
-  {
-    room0F: "sc-elev-east",
-    node0F: "S_0F_SC_ELEV",
-    node1F: "S_1F_SC_ELEV",
-    node1FCorridor: "S_1F_SC_J_E",
-    room1F: "1f-sc-corridor-east",
-  },
-  {
-    room0F: "sd-elev-west",
-    node0F: "S_0F_SD_ELEV",
-    node1F: "S_1F_SD_ELEV",
-    node1FCorridor: "S_1F_SD_J_W",
-    room1F: "1f-sd-corridor-west",
-  },
-];
-
-/**
- * 0F 楼梯+电梯同井道（CAD 蓝框内并列）→ 1F 走廊
- * sc-east-shaft：SC 东侧，电梯在上、楼梯在下
- */
-export const SHAFT_FLOOR_LINKS = [
-  {
-    room0F: "sc-east-shaft",
-    node0FStair: "S_0F_SC_STAIR_E",
-    node0FElev: "S_0F_SC_ELEV",
-    node1FStair: "S_1F_SC_STAIR_E",
-    node1FElev: "S_1F_SC_ELEV",
-    node1FCorridor: "S_1F_SC_J_E",
-    room1F: "1f-sc-corridor-east",
-  },
-  {
-    room0F: "sd-east-shaft",
-    node0FStair: "S_0F_SD_STAIR_E",
-    node1FStair: "S_1F_SD_STAIR_E",
-    node1FCorridor: "S_1F_SD_J_E",
-    room1F: "1f-sd-corridor-east",
-  },
-] as const;
+/** 跨层竖井连接定义见 floorPortals.ts（单一数据源） */
+export { STAIR_FLOOR_LINKS, ELEVATOR_FLOOR_LINKS, SHAFT_FLOOR_LINKS } from "./floorPortals";
 
 const STAIR_LINK_BY_ROOM_0F = new Map(STAIR_FLOOR_LINKS.map((l) => [l.room0F, l]));
 const ELEV_LINK_BY_ROOM_0F = new Map(ELEVATOR_FLOOR_LINKS.map((l) => [l.room0F, l]));
@@ -672,17 +590,4 @@ export function getRoomById(floorId: FloorId, roomId: string): RoomDef | undefin
 export function getViewpointsForRoom(floorId: FloorId, roomId: string): ViewpointDef[] {
   if (floorId !== "0F") return [];
   return VIEWPOINTS_0F.filter((v) => v.roomId === roomId);
-}
-
-/** @deprecated 旧探索模式兼容 */
-export function getExploreRooms(floorId: FloorId): RoomDef[] {
-  return getRoomsForFloor(floorId).filter((r) => r.imageSrc);
-}
-
-/** @deprecated 旧探索模式兼容 */
-export function getExploreRoomById(
-  floorId: FloorId,
-  roomId: string
-): RoomDef | undefined {
-  return getExploreRooms(floorId).find((r) => r.id === roomId);
 }

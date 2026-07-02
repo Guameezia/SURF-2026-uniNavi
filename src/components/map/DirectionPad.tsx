@@ -20,19 +20,27 @@ interface DirectionPadProps {
   available: Partial<Record<Direction, string>>;
   onMove: (direction: Direction) => void;
   vertical?: VerticalPadOptions;
+  /** 路线导航时高亮推荐方向 */
+  highlightDirs?: Direction[];
 }
 
-export function DirectionPad({ available, onMove, vertical }: DirectionPadProps) {
+export function DirectionPad({
+  available,
+  onMove,
+  vertical,
+  highlightDirs = [],
+}: DirectionPadProps) {
   const btn = (dir: Direction, gridArea: string) => {
     const target = available[dir];
     if (!target) {
       return <span key={dir} className="dir-pad-empty" style={{ gridArea: gridArea.replace(/"/g, "") }} />;
     }
+    const highlighted = highlightDirs.includes(dir);
     return (
       <button
         key={dir}
         type="button"
-        className="dir-pad-btn"
+        className={`dir-pad-btn${highlighted ? " dir-pad-btn--route" : ""}`}
         style={{ gridArea: gridArea.replace(/"/g, "") }}
         onClick={() => onMove(dir)}
         title={`前往 ${target}`}

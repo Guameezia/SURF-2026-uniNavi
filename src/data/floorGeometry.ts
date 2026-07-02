@@ -1,12 +1,17 @@
 /**
- * 地图画布配置（与小程序 constants.js 保持一致）
- *
- * 替换像素 PNG 底图时，请同步更新：
- * - MAP_VIEWBOX：PNG 实际宽高（建议 32 的倍数）
- * - MAP_MODEL_OFFSET：若整体偏移有变则调整
- * - legacyIndoorData.ts 中 MAP_ASSET_EXTENSION → 'png'
+ * 楼层几何配置 — 单一数据源
+ * draw.io 页面坐标、SVG viewBox、model 偏移均由此文件维护
  */
 import type { FloorId } from "../types/indoor";
+
+export const BUILDING_ID = "S";
+
+export interface FloorMapConfig {
+  width: number;
+  height: number;
+  offsetX: number;
+  offsetY: number;
+}
 
 export interface MapViewBox {
   width: number;
@@ -18,45 +23,45 @@ export interface MapPoint2D {
   y: number;
 }
 
-export const MAP_VIEWBOX: Record<string, Record<FloorId, MapViewBox>> = {
-  S: {
-    "0F": { width: 760, height: 720 },
-    "1F": { width: 560, height: 680 },
-    "2F": { width: 520, height: 690 },
-    "3F": { width: 522, height: 681 },
-    "4F": { width: 522, height: 681 },
-    "5F": { width: 521, height: 681 },
-  },
-};
-
-export const MAP_MODEL_OFFSET: Record<string, Record<FloorId, MapPoint2D>> = {
-  S: {
-    "0F": { x: 81, y: 120 },
-    "1F": { x: 140, y: 120 },
-    "2F": { x: 160, y: 120 },
-    "3F": { x: 160, y: 120 },
-    "4F": { x: 160, y: 120 },
-    "5F": { x: 160, y: 120 },
-  },
+/** 各楼层 SVG viewBox 与 model 偏移（与 draw.io 导出一致） */
+export const FLOOR_MAP_CONFIG: Record<FloorId, FloorMapConfig> = {
+  "0F": { width: 760, height: 720, offsetX: 80, offsetY: 120 },
+  "1F": { width: 560, height: 680, offsetX: 140, offsetY: 120 },
+  "2F": { width: 520, height: 690, offsetX: 160, offsetY: 120 },
+  "3F": { width: 522, height: 681, offsetX: 160, offsetY: 120 },
+  "4F": { width: 522, height: 681, offsetX: 160, offsetY: 120 },
+  "5F": { width: 521, height: 681, offsetX: 160, offsetY: 120 },
 };
 
 const DEFAULT_VIEWBOX: MapViewBox = { width: 850, height: 950 };
 
-/** 与 GitHub 初版一致的网页显示画布（底图拉伸到此尺寸） */
+/** 与初版网页显示画布一致（底图拉伸尺寸） */
 export const DISPLAY_CANVAS: MapViewBox = { width: 850, height: 950 };
+
+export function getFloorMapConfig(floorId: FloorId): FloorMapConfig {
+  return FLOOR_MAP_CONFIG[floorId];
+}
 
 export function getFloorViewBox(
   building: string,
   floorId: FloorId
 ): MapViewBox {
-  return MAP_VIEWBOX[building]?.[floorId] ?? DEFAULT_VIEWBOX;
+  if (building === BUILDING_ID) {
+    const { width, height } = FLOOR_MAP_CONFIG[floorId];
+    return { width, height };
+  }
+  return DEFAULT_VIEWBOX;
 }
 
 export function getFloorModelOffset(
   building: string,
   floorId: FloorId
 ): MapPoint2D {
-  return MAP_MODEL_OFFSET[building]?.[floorId] ?? { x: 0, y: 0 };
+  if (building === BUILDING_ID) {
+    const { offsetX, offsetY } = FLOOR_MAP_CONFIG[floorId];
+    return { x: offsetX, y: offsetY };
+  }
+  return { x: 0, y: 0 };
 }
 
 export function modelToSvg(
@@ -79,7 +84,6 @@ export function svgToModel(
   return { x: x + offset.x, y: y + offset.y };
 }
 
-/** model → 网页 850×950 画布坐标（与 GitHub 初版显示一致，POI 仍对齐） */
 export function modelToDisplay(
   x: number,
   y: number,
@@ -94,7 +98,6 @@ export function modelToDisplay(
   };
 }
 
-/** 网页画布坐标 → model（贴便签点击用） */
 export function displayToModel(
   x: number,
   y: number,

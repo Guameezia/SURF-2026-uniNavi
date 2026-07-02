@@ -71,18 +71,25 @@ uni-navi-web/
 │   ├── data/
 │   │   ├── nodes.ts               # S 楼节点数据 (539 个)
 │   │   ├── edges.ts               # S 楼边数据 (613 条)
+│   │   ├── floorGeometry.ts       # 楼层坐标 / viewBox 单一数据源
+│   │   ├── floorPortals.ts        # 跨层竖井连接单一数据源
+│   │   ├── roomConfig.ts          # 0F/1F 分房间导航配置
 │   │   ├── index.ts               # 数据导出入口
 │   │   └── adapters/
-│   │       └── legacyIndoorData.ts  # 旧数据格式适配器
+│   │       └── legacyIndoorData.ts
 │   ├── algorithms/
 │   │   ├── graph.ts               # 图数据结构构建
-│   │   └── pathfinding.ts         # Dijkstra 路径算法
+│   │   ├── pathfinding.ts         # Dijkstra 路径算法
+│   │   └── routeRoomBridge.ts     # 图寻路 ↔ 分房间导航桥接
 │   ├── store/
-│   │   └── mapStore.ts            # Zustand 全局状态管理
+│   │   ├── mapStore.ts            # 地图与导航状态
+│   │   └── roomStore.ts           # 分房间当前位置
 │   ├── components/
 │   │   └── map/
-│   │       ├── IndoorMapSVG.tsx   # SVG 地图渲染组件
-│   │       └── FloorSelector.tsx  # 楼层选择器组件
+│   │       ├── MapViewport.tsx    # 统一视口（CAD / 分房间）
+│   │       ├── IndoorMapSVG.tsx   # 2F–5F 整层 CAD
+│   │       ├── RoomMapView.tsx    # 0F/1F 分房间导航
+│   │       └── FloorSelector.tsx
 │   ├── App.tsx                    # 主应用组件
 │   ├── App.css                    # 应用样式
 │   └── main.tsx                   # 应用入口
@@ -151,6 +158,24 @@ interface MapEdge {
 - `nodeIds` - 途经节点 ID 列表
 - `points` - 坐标点列表，用于 SVG 绘制
 
+## 地图模式
+
+`MapViewport` 按楼层自动切换渲染策略：
+
+| 楼层 | 模式 | 组件 | 交互 |
+|------|------|------|------|
+| 0F、1F | 分房间导航 | `RoomMapView` | 方向键 / 方向盘在 room 间移动 |
+| 2F–5F | 整层 CAD | `IndoorMapSVG` | 缩放、拖拽、点击 POI |
+
+规划路线后，`routeRoomBridge` 将图寻路的 `nodeIds` 映射为 room 序列；在 0F/1F 会：
+
+- 自动进入路线起点 room
+- 方向盘仅显示沿路线允许的方向
+- 高亮「下一站」room（顶栏提示 + 小地图绿色块）
+- 小地图叠加 CAD 路径线
+
+跨层竖井连接定义在 `floorPortals.ts`，与 `roomConfig` 共用，避免多处手工维护。
+
 ## 地图渲染
 
 ### 双层渲染架构
@@ -185,24 +210,25 @@ interface MapEdge {
    - 选择终点 POI
    - 点击「Plan」按钮
    - 路径会在地图上显示，跨楼层路径可通过楼层选择器切换查看
-4. **0F 探索模式**：
-   - 切换到 0F，鼠标移到房间区域会淡蓝高亮，点击进入房间内部视图
-   - Tongfa Canteen 显示 AI 贴图；SA007 / SD085 暂为占位图
-   - 房间内右上角小地图 hover 可放大，点击返回整层地图
-   - 使用「Drop a Leaf」放置便签，支持 localStorage 持久化
-   - 规划路径时会自动切回地图视图并显示路线
+4. **0F/1F 分房间浏览**：
+   - 使用方向键或屏幕方向盘在走廊 / 房间间移动
+   - Tongfa 食堂、SA007、SD085 等有贴图；其余区域为占位
+   - 右下角小地图可缩放、点击跳转 room；导航时显示路径
+   - 「Drop a Leaf」放置便签，支持 localStorage 持久化
 5. **清除路径**：点击「Edit」后可重新编辑路线
+
+调试模式仅在开发环境（`npm run dev`）显示。
 
 ## 开发计划
 
-### 当前版本（第一阶段）
+### 当前版本
 
 - [x] 项目基础架构搭建
 - [x] S 楼数据迁移
-- [x] 楼层地图显示
-- [x] POI 展示与选择
-- [x] 基础路径规划
-- [x] 地图缩放和平移
+- [x] 楼层地图显示（CAD + 分房间双模式）
+- [x] POI 展示与路径规划（Comfort / Fast）
+- [x] 图寻路 ↔ 分房间导航桥接
+- [x] 楼层几何 / 竖井连接单一数据源
 
 ### 后续计划
 

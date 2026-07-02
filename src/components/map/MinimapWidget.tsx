@@ -23,6 +23,10 @@ interface MinimapWidgetProps {
   onSelectRoom?: (roomId: string) => void;
   /** 导航时在 minimap 上绘制路径 */
   showRoute?: boolean;
+  /** 路线下一站 room */
+  highlightRoomId?: string | null;
+  /** 本层路线 room 序列（用于高亮途经块） */
+  routeRoomIds?: string[];
 }
 
 const DRAG_THRESHOLD = 4;
@@ -34,6 +38,8 @@ export function MinimapWidget({
   onBackToMap,
   onSelectRoom,
   showRoute = false,
+  highlightRoomId = null,
+  routeRoomIds,
 }: MinimapWidgetProps) {
   const { width, height, imageSrc } = getFloorOverview(floorId);
   const currentRoom = rooms.find((r) => r.id === currentRoomId);
@@ -227,6 +233,9 @@ export function MinimapWidget({
         {rooms.map((r) => {
           const { x, y, w, h } = r.overviewRect;
           const isCurrent = r.id === currentRoomId;
+          const isNext = highlightRoomId != null && r.id === highlightRoomId;
+          const onRoute =
+            routeRoomIds?.includes(r.id) && !isCurrent && !isNext;
           return (
             <g key={r.id}>
               <rect
@@ -237,10 +246,16 @@ export function MinimapWidget({
                 fill={
                   isCurrent
                     ? "rgba(25, 118, 210, 0.45)"
-                    : "rgba(25, 118, 210, 0.12)"
+                    : isNext
+                      ? "rgba(46, 125, 50, 0.35)"
+                      : onRoute
+                        ? "rgba(25, 118, 210, 0.2)"
+                        : "rgba(25, 118, 210, 0.12)"
                 }
-                stroke={isCurrent ? "#1976d2" : "#90caf9"}
-                strokeWidth={isCurrent ? 3 : 1.5}
+                stroke={
+                  isCurrent ? "#1976d2" : isNext ? "#2e7d32" : "#90caf9"
+                }
+                strokeWidth={isCurrent || isNext ? 3 : 1.5}
                 rx={2}
                 pointerEvents={roomNavMode ? "all" : "none"}
                 style={roomNavMode ? { cursor: "pointer" } : undefined}

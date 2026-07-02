@@ -13,32 +13,33 @@ import type {
   ComputedRoute,
   NavigationUIPhase,
 } from "../types/indoor";
+import type { RoomRoutePlan } from "../algorithms/routeRoomBridge";
+import {
+  buildRoomRoutePlan,
+  getEntryRoomForFloor,
+} from "../algorithms/routeRoomBridge";
+import { hasRoomNavigation } from "../data/roomConfig";
 
 interface MapState {
-  // 状态
   floors: Floor[];
   currentFloorId: FloorId;
-  /** 切层后一次性聚焦到该导航节点（整层 CAD 模式） */
   floorFocusNodeId: string | null;
-  /** 切层后进入的分房间 id（分房间模式，优先于 floorFocusNodeId） */
   floorEntryRoomId: string | null;
   selectedPOIId: string | null;
   routeResult: RouteResult | null;
   graph: Graph | null;
   pois: POI[];
 
-  // 导航状态
   uiPhase: NavigationUIPhase;
   comfortRoute: ComputedRoute | null;
   fastRoute: ComputedRoute | null;
   selectedRouteMode: RouteMode;
   hasMultipleRoutes: boolean;
+  roomRoutePlan: RoomRoutePlan | null;
 
-  // 加载状态
   isLoading: boolean;
   error: string | null;
 
-  // Actions
   initializeMap: (graph: Graph, pois: POI[], floors: Floor[]) => void;
   setCurrentFloor: (floorId: FloorId) => void;
   transitionToFloor: (
@@ -61,8 +62,64 @@ interface MapState {
   setError: (error: string | null) => void;
 }
 
+function resolveActiveRoute(
+  comfort: ComputedRoute,
+  fast: ComputedRoute,
+  mode: RouteMode
+): ComputedRoute {
+  const active = mode === "fast" ? fast : comfort;
+  return active.found ? active : comfort.found ? comfort : fast;
+}
+
+function applyRouteState(
+  route: ComputedRoute,
+  graph: Graph | null,
+  mode: RouteMode,
+  hasMultipleRoutes: boolean,
+  comfort: ComputedRoute,
+  fast: ComputedRoute,
+  prevFloorId: FloorId
+): Pick<
+  MapState,
+  | "comfortRoute"
+  | "fastRoute"
+  | "hasMultipleRoutes"
+  | "routeResult"
+  | "roomRoutePlan"
+  | "uiPhase"
+  | "currentFloorId"
+  | "floorEntryRoomId"
+  | "floorFocusNodeId"
+  | "selectedRouteMode"
+> {
+  const roomRoutePlan =
+    route.found && graph ? buildRoomRoutePlan(graph, route) : null;
+
+  const firstFloor =
+    route.found && route.segments.length > 0
+      ? route.segments[0].floorId
+      : prevFloorId;
+
+  const entryRoomId =
+    route.found && hasRoomNavigation(firstFloor)
+      ? getEntryRoomForFloor(roomRoutePlan, firstFloor)
+      : null;
+
+  return {
+    comfortRoute: comfort,
+    fastRoute: fast,
+    hasMultipleRoutes,
+    routeResult: route.found ? route : null,
+    roomRoutePlan,
+    uiPhase: route.found ? "navigating" : "idle",
+    currentFloorId: firstFloor,
+    floorEntryRoomId: entryRoomId,
+    floorFocusNodeId: null,
+    selectedRouteMode: mode,
+  };
+}
+
 export const useMapStore = create<MapState>((set, get) => ({
-  // 初始状态
   floors: [],
   currentFloorId: "0F",
   floorFocusNodeId: null,
@@ -76,10 +133,10 @@ export const useMapStore = create<MapState>((set, get) => ({
   fastRoute: null,
   selectedRouteMode: "comfort",
   hasMultipleRoutes: false,
+  roomRoutePlan: null,
   isLoading: true,
   error: null,
 
-  // 初始化地图
   initializeMap: (graph, pois, floors) => {
     const prefer0F = floors.find((f) => f.id === "0F");
     set({
@@ -92,12 +149,21 @@ export const useMapStore = create<MapState>((set, get) => ({
     });
   },
 
-  // 切换楼层
   setCurrentFloor: (floorId) => {
+    const { uiPhase, roomRoutePlan } = get();
+    let entryRoomId: string | null = null;
+    let focusNodeId: string | null = null;
+
+    if (uiPhase === "navigating" && roomRoutePlan) {
+      if (hasRoomNavigation(floorId)) {
+        entryRoomId = getEntryRoomForFloor(roomRoutePlan, floorId);
+      }
+    }
+
     set({
       currentFloorId: floorId,
-      floorFocusNodeId: null,
-      floorEntryRoomId: null,
+      floorFocusNodeId: entryRoomId ? null : focusNodeId,
+      floorEntryRoomId: entryRoomId,
     });
   },
 
@@ -117,65 +183,86 @@ export const useMapStore = create<MapState>((set, get) => ({
     set({ floorEntryRoomId: null });
   },
 
-  // 选择 POI
   selectPOI: (poiId) => {
     set({ selectedPOIId: poiId });
   },
 
-  // 设置路径结果
   setRoute: (result) => {
+    const { graph } = get();
+    const roomRoutePlan =
+      result.found && graph ? buildRoomRoutePlan(graph, result) : null;
+
     set(() => {
       if (result.found && result.segments.length > 0) {
+        const floorId = result.segments[0].floorId;
+        const entryRoomId = hasRoomNavigation(floorId)
+          ? getEntryRoomForFloor(roomRoutePlan, floorId)
+          : null;
         return {
           routeResult: result,
-          currentFloorId: result.segments[0].floorId,
+          roomRoutePlan,
+          currentFloorId: floorId,
+          floorEntryRoomId: entryRoomId,
+          floorFocusNodeId: entryRoomId ? null : get().floorFocusNodeId,
         };
       }
-      return { routeResult: result };
+      return { routeResult: result, roomRoutePlan };
     });
   },
 
   setDualRoutes: (comfort, fast, hasMultipleRoutes) => {
-    const active = get().selectedRouteMode === "fast" ? fast : comfort;
-    const route = active.found ? active : comfort.found ? comfort : fast;
-
-    set({
-      comfortRoute: comfort,
-      fastRoute: fast,
-      hasMultipleRoutes,
-      routeResult: route.found ? route : null,
-      uiPhase: route.found ? "navigating" : "idle",
-      currentFloorId:
-        route.found && route.segments.length > 0
-          ? route.segments[0].floorId
-          : get().currentFloorId,
-    });
+    const { graph, selectedRouteMode, currentFloorId } = get();
+    const route = resolveActiveRoute(comfort, fast, selectedRouteMode);
+    set(
+      applyRouteState(
+        route,
+        graph,
+        selectedRouteMode,
+        hasMultipleRoutes,
+        comfort,
+        fast,
+        currentFloorId
+      )
+    );
   },
 
   setRouteMode: (mode) => {
-    const { comfortRoute, fastRoute } = get();
+    const { comfortRoute, fastRoute, graph, hasMultipleRoutes, currentFloorId } =
+      get();
+    if (!comfortRoute || !fastRoute) {
+      set({ selectedRouteMode: mode });
+      return;
+    }
+
     const route = mode === "fast" ? fastRoute : comfortRoute;
     if (!route?.found) {
       set({ selectedRouteMode: mode });
       return;
     }
-    set({
-      selectedRouteMode: mode,
-      routeResult: route,
-      currentFloorId:
-        route.segments.length > 0 ? route.segments[0].floorId : get().currentFloorId,
-    });
+
+    set(
+      applyRouteState(
+        route,
+        graph,
+        mode,
+        hasMultipleRoutes,
+        comfortRoute,
+        fastRoute,
+        currentFloorId
+      )
+    );
   },
 
-  // 清除路径
   clearRoute: () => {
     set({
       routeResult: null,
       comfortRoute: null,
       fastRoute: null,
       hasMultipleRoutes: false,
+      roomRoutePlan: null,
       uiPhase: "idle",
       selectedRouteMode: "comfort",
+      floorEntryRoomId: null,
     });
   },
 
@@ -185,20 +272,18 @@ export const useMapStore = create<MapState>((set, get) => ({
       comfortRoute: null,
       fastRoute: null,
       hasMultipleRoutes: false,
+      roomRoutePlan: null,
       uiPhase: "idle",
       selectedRouteMode: "comfort",
+      floorEntryRoomId: null,
     });
   },
 
-  // 设置错误
   setError: (error) => {
     set({ error, isLoading: false });
   },
 }));
 
-/**
- * 判断指定楼层是否有路径段
- */
 export function hasRouteOnFloor(
   routeResult: RouteResult | null,
   floorId: FloorId
@@ -207,9 +292,6 @@ export function hasRouteOnFloor(
   return routeResult.segments.some((seg) => seg.floorId === floorId);
 }
 
-/**
- * 获取指定楼层的路径段
- */
 export function getRouteSegmentForFloor(
   routeResult: RouteResult | null,
   floorId: FloorId
@@ -218,9 +300,6 @@ export function getRouteSegmentForFloor(
   return routeResult.segments.find((seg) => seg.floorId === floorId) || null;
 }
 
-/**
- * 获取有路径的楼层列表
- */
 export function getFloorsWithRoute(routeResult: RouteResult | null): FloorId[] {
   if (!routeResult || !routeResult.found) return [];
   return routeResult.segments.map((seg) => seg.floorId);

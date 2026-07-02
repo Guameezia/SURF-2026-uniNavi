@@ -11,7 +11,7 @@ import { RouteTypePicker } from "./components/navigation/RouteTypePicker";
 import { createGraph, getPOINodes, getFloors } from "./algorithms/graph";
 import { findDualRoutes } from "./algorithms/pathfinding";
 import { filterPOISuggestions, resolvePOINodeId } from "./utils/poiSearch";
-import { MapView } from "./components/map/MapView";
+import { MapViewport } from "./components/map/MapViewport";
 import { sNodes, sEdges } from "./data";
 import type { POI } from "./types/indoor";
 import "./App.css";
@@ -37,6 +37,7 @@ function App() {
   const [selectedStartId, setSelectedStartId] = useState("");
   const [selectedEndId, setSelectedEndId] = useState("");
   const [debugMode, setDebugMode] = useState(false);
+  const showDebugToggle = import.meta.env.DEV;
   const [directionsExpanded, setDirectionsExpanded] = useState(true);
   const [activeField, setActiveField] = useState<"start" | "end" | null>(null);
 
@@ -195,14 +196,16 @@ function App() {
                 >
                   Plan
                 </button>
-                <label className="debug-toggle">
-                  <input
-                    type="checkbox"
-                    checked={debugMode}
-                    onChange={(e) => setDebugMode(e.target.checked)}
-                  />
-                  调试模式
-                </label>
+                {showDebugToggle && (
+                  <label className="debug-toggle">
+                    <input
+                      type="checkbox"
+                      checked={debugMode}
+                      onChange={(e) => setDebugMode(e.target.checked)}
+                    />
+                    调试模式
+                  </label>
+                )}
               </div>
             </div>
           ) : (
@@ -221,14 +224,16 @@ function App() {
               <button onClick={handleEdit} className="btn-secondary">
                 Edit
               </button>
-              <label className="debug-toggle">
-                <input
-                  type="checkbox"
-                  checked={debugMode}
-                  onChange={(e) => setDebugMode(e.target.checked)}
-                />
-                调试模式
-              </label>
+              {showDebugToggle && (
+                <label className="debug-toggle">
+                  <input
+                    type="checkbox"
+                    checked={debugMode}
+                    onChange={(e) => setDebugMode(e.target.checked)}
+                  />
+                  调试模式
+                </label>
+              )}
             </div>
           )}
         </div>
@@ -249,10 +254,10 @@ function App() {
           <FloorSelector />
         </aside>
 
-        <MapView debugMode={debugMode} />
+        <MapViewport debugMode={debugMode && showDebugToggle} />
       </main>
 
-      {debugMode && (
+      {showDebugToggle && debugMode && (
         <div className="legend">
           <div className="legend-item">
             <span

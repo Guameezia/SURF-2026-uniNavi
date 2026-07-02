@@ -1,5 +1,5 @@
 /**
- * 地图视图：0F / 1F 使用分房间导航，其余楼层使用整层 CAD 图
+ * 统一地图视口：按楼层策略切换 CAD 整层图 / 分房间导航
  */
 
 import { useMapStore } from "../../store/mapStore";
@@ -7,11 +7,11 @@ import { hasRoomNavigation } from "../../data/roomConfig";
 import { IndoorMapSVG } from "./IndoorMapSVG";
 import { RoomMapView } from "./RoomMapView";
 
-interface MapViewProps {
+interface MapViewportProps {
   debugMode?: boolean;
 }
 
-export function MapView({ debugMode = false }: MapViewProps) {
+export function MapViewport({ debugMode = false }: MapViewportProps) {
   const { currentFloorId } = useMapStore();
   const useRoomMode = hasRoomNavigation(currentFloorId);
 
@@ -25,3 +25,8 @@ export function MapView({ debugMode = false }: MapViewProps) {
     </div>
   );
 }
+
+/** @deprecated 使用 MapViewport */
+export const MapView = MapViewport;
+
+export default MapViewport;

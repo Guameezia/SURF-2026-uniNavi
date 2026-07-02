@@ -608,12 +608,28 @@ html, body, #root {
 
 .room-interior-topbar {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
   padding: 10px 20px;
   background: #fff;
   border-bottom: 1px solid #e0e0e0;
   flex-shrink: 0;
   z-index: 20;
+}
+
+.room-nav-hint {
+  font-size: 13px;
+  color: #2e7d32;
+  background: #e8f5e9;
+  padding: 6px 12px;
+  border-radius: 8px;
+  width: 100%;
+}
+
+.room-nav-hint--arrived {
+  color: #1565c0;
+  background: #e3f2fd;
 }
 
 .room-interior-title-row {
@@ -1038,6 +1054,18 @@ html, body, #root {
 .dir-pad-btn:hover {
   background: rgba(25, 118, 210, 0.08);
   border-color: #1976d2;
+}
+
+.dir-pad-btn--route {
+  border-color: #2e7d32;
+  color: #1b5e20;
+  background: rgba(46, 125, 50, 0.12);
+  box-shadow: 0 0 0 2px rgba(46, 125, 50, 0.25);
+}
+
+.dir-pad-btn--route:hover {
+  background: rgba(46, 125, 50, 0.2);
+  border-color: #1b5e20;
 }
 
 .dir-pad-center {

@@ -1,5 +1,5 @@
 import type { FloorId, MapPoint } from "../types/indoor";
-import { FLOOR_MAP_CONFIG } from "../types/indoor";
+import { getFloorMapConfig } from "../data/floorGeometry";
 
 /**
  * 叠加层整体平移微调（SVG 坐标，正值：X 向右，Y 向下）。
@@ -8,9 +8,7 @@ import { FLOOR_MAP_CONFIG } from "../types/indoor";
  */
 export const POINT_NUDGE = { x: 1, y: 0 } as const;
 
-export function getFloorMapConfig(floorId: FloorId) {
-  return FLOOR_MAP_CONFIG[floorId];
-}
+export { getFloorMapConfig } from "../data/floorGeometry";
 
 /** 将 draw.io 页面坐标转换为楼层 SVG viewBox 坐标 */
 export function toSvgPoint(floorId: FloorId, x: number, y: number): MapPoint {

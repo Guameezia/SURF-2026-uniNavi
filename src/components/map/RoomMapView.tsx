@@ -19,10 +19,15 @@ import { RoomPlaceholder } from "./RoomPlaceholder";
 import { DirectionPad } from "./DirectionPad";
 import { ViewpointMarker, ViewpointDialog } from "./ViewpointMarker";
 import type { ViewpointDef } from "../../types/room";
-import { MinimapWidget } from "../explore/MinimapWidget";
-import { LeafToolbar } from "../explore/LeafToolbar";
-import { LeafMarker } from "../explore/LeafIcon";
-import { LeafNoteSheet, type LeafNoteSheetMode } from "../explore/LeafNoteSheet";
+import { MinimapWidget } from "./MinimapWidget";
+import { LeafToolbar } from "./LeafToolbar";
+import { LeafMarker } from "./LeafIcon";
+import { LeafNoteSheet, type LeafNoteSheetMode } from "./LeafNoteSheet";
+import {
+  getRoomRouteSegment,
+  getNextRouteRoom,
+  filterRouteDirections,
+} from "../../algorithms/routeRoomBridge";
 
 const BUILDING_ID = "S";
 const MAP_INTERACTION = { minScale: 0.5, maxScale: 2.5, scaleStep: 0.1 };
@@ -52,11 +57,26 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
     transitionToFloor,
     floorEntryRoomId,
     clearFloorEntry,
+    uiPhase,
+    roomRoutePlan,
   } = useMapStore();
   const { currentRoomId, initForFloor, setRoom } = useRoomStore();
   const { notes, addNote, updateNote, deleteNote } = useLeafNoteStore();
 
   const floorId = currentFloorId;
+  const isNavigating = uiPhase === "navigating";
+  const floorRoomRoute = useMemo(
+    () => getRoomRouteSegment(roomRoutePlan, floorId),
+    [roomRoutePlan, floorId]
+  );
+  const nextRouteRoomId = useMemo(() => {
+    if (!isNavigating || !floorRoomRoute || !currentRoomId) return null;
+    return getNextRouteRoom(floorRoomRoute, currentRoomId);
+  }, [isNavigating, floorRoomRoute, currentRoomId]);
+
+  const nextRouteRoom = nextRouteRoomId
+    ? getRoomById(floorId, nextRouteRoomId)
+    : undefined;
   const rooms = getRoomsForFloor(floorId);
   const room = currentRoomId ? getRoomById(floorId, currentRoomId) : undefined;
 
@@ -186,8 +206,23 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
         }
       }
     });
+    if (isNavigating && floorRoomRoute && floorRoomRoute.length > 0) {
+      return filterRouteDirections(
+        floorId,
+        room.id,
+        result,
+        floorRoomRoute
+      );
+    }
     return result;
-  }, [room, floorId]);
+  }, [room, floorId, isNavigating, floorRoomRoute]);
+
+  const highlightDirs = useMemo(() => {
+    if (!nextRouteRoomId || !room) return [] as Direction[];
+    return (["up", "down", "left", "right"] as Direction[]).filter(
+      (dir) => room.neighbors[dir] === nextRouteRoomId
+    );
+  }, [nextRouteRoomId, room]);
 
   const canvasW = room?.viewWidth ?? 640;
   const canvasH = room?.viewHeight ?? 400;
@@ -298,6 +333,16 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
             noteCount={roomNotes.length}
           />
         </div>
+        {isNavigating && nextRouteRoom && (
+          <div className="room-nav-hint" role="status">
+            下一站：<strong>{nextRouteRoom.label}</strong>
+          </div>
+        )}
+        {isNavigating && !nextRouteRoom && floorRoomRoute?.includes(room.id) && (
+          <div className="room-nav-hint room-nav-hint--arrived" role="status">
+            已到达本层路线终点
+          </div>
+        )}
       </div>
 
       {leafDropMode && (
@@ -388,6 +433,7 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
           available={availableDirs}
           onMove={tryMove}
           vertical={verticalPad}
+          highlightDirs={highlightDirs}
         />
       </div>
 
@@ -397,6 +443,8 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
         currentRoomId={currentRoomId}
         onSelectRoom={navigateToRoom}
         showRoute
+        highlightRoomId={nextRouteRoomId}
+        routeRoomIds={floorRoomRoute ?? undefined}
       />
 
       <LeafNoteSheet
