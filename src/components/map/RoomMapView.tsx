@@ -6,6 +6,8 @@ import React, { useRef, useState, useCallback, useEffect, useMemo } from "react"
 import { useMapStore } from "../../store/mapStore";
 import { useRoomStore } from "../../store/roomStore";
 import { useLeafNoteStore } from "../../store/leafNoteStore";
+import { useTopicStore } from "../../store/topicStore";
+import { useAppNavStore } from "../../store/appNavStore";
 import {
   getRoomsForFloor,
   getRoomById,
@@ -23,6 +25,14 @@ import { MinimapWidget } from "./MinimapWidget";
 import { LeafToolbar } from "./LeafToolbar";
 import { LeafMarker } from "./LeafIcon";
 import { LeafNoteSheet, type LeafNoteSheetMode } from "./LeafNoteSheet";
+import { type LeafNotePanelFilter } from "./LeafNotePanel";
+import { filterAndSortNotes } from "../../utils/leafNoteTags";
+import {
+  canPromoteCluster,
+  defaultTitleFromNote,
+  getClusterForNote,
+  isNoteHeating,
+} from "../../utils/topicRules";
 import {
   getRoomRouteSegment,
   getNextRouteRoom,
@@ -61,7 +71,34 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
     roomRoutePlan,
   } = useMapStore();
   const { currentRoomId, initForFloor, setRoom } = useRoomStore();
-  const { notes, addNote, updateNote, deleteNote } = useLeafNoteStore();
+  const {
+    notes,
+    addNote,
+    updateNote,
+    deleteNote,
+    setNoteStatus,
+    markHelpful,
+    hasLiked,
+  } = useLeafNoteStore();
+  const { getActiveTopics, getTopicById, createTopicFromPromotion, topics, dismissedClusterKeys } =
+    useTopicStore();
+  const {
+    pendingTopic,
+    dropLeafOnArrive,
+    consumeDropLeafIntent,
+    clearPendingTopic,
+  } = useAppNavStore();
+
+  const activeTopics = getActiveTopics();
+
+  const [createTopicId, setCreateTopicId] = useState<string | null>(null);
+
+  const [noteFilter, setNoteFilter] = useState<LeafNotePanelFilter>({
+    tagId: "all",
+    query: "",
+    sort: "helpful",
+    showResolved: false,
+  });
 
   const floorId = currentFloorId;
   const isNavigating = uiPhase === "navigating";
@@ -94,6 +131,20 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
     }
     initForFloor(floorId);
   }, [floorId, currentRoomId, initForFloor]);
+
+  useEffect(() => {
+    if (!dropLeafOnArrive || !pendingTopic) return;
+    consumeDropLeafIntent();
+    setCreateTopicId(pendingTopic.topicId);
+    if (pendingTopic.suggestedTags.length > 0) {
+      setNoteFilter((prev) => ({
+        ...prev,
+        tagId: pendingTopic.suggestedTags[0],
+      }));
+    }
+    setLeafDropMode(true);
+    setNoteDialog(null);
+  }, [dropLeafOnArrive, pendingTopic, consumeDropLeafIntent]);
 
   useEffect(() => {
     if (floorEntryRoomId) {
@@ -186,6 +237,25 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
       ),
     [notes, floorId, currentRoomId]
   );
+
+  const filteredRoomNotes = useMemo(
+    () =>
+      filterAndSortNotes(roomNotes, {
+        tagId: noteFilter.tagId,
+        query: noteFilter.query,
+        sort: noteFilter.sort,
+        status: noteFilter.showResolved ? "all" : "active_only",
+      }),
+    [roomNotes, noteFilter]
+  );
+
+  const mapNotes = useMemo(
+    () => roomNotes.filter((n) => n.status === "active"),
+    [roomNotes]
+  );
+
+  const isPlacingLeaf = leafDropMode && noteDialog === null;
+  const isCreatingLeaf = noteDialog?.kind === "create";
 
   const viewpoints = useMemo(
     () => (currentRoomId ? getViewpointsForRoom(floorId, currentRoomId) : []),
@@ -316,10 +386,69 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
           ? "view"
           : null;
 
+  const dialogNoteId =
+    noteDialog && noteDialog.kind !== "create" ? noteDialog.note.id : null;
+
+  const sheetNote = useMemo(
+    () =>
+      dialogNoteId
+        ? (notes.find((n) => n.id === dialogNoteId) ?? null)
+        : null,
+    [notes, dialogNoteId]
+  );
+
   const sheetText =
-    noteDialog?.kind === "create" ? "" : (noteDialog?.note.text ?? "");
+    noteDialog?.kind === "create" ? "" : (sheetNote?.text ?? "");
+
+  const sheetTags = useMemo(() => {
+    if (noteDialog?.kind === "create") {
+      const topic = createTopicId ? getTopicById(createTopicId) : null;
+      if (topic?.suggestedTags.length) return [...topic.suggestedTags];
+      return [];
+    }
+    return sheetNote?.tags ?? [];
+  }, [noteDialog, createTopicId, getTopicById, sheetNote?.tags]);
+
+  const sheetIconId =
+    noteDialog?.kind === "create" ? undefined : sheetNote?.iconId;
+
+  const sheetIconLocked =
+    noteDialog?.kind === "create" ? false : (sheetNote?.iconLocked ?? false);
+
+  const linkedTopic = sheetNote?.topicId
+    ? getTopicById(sheetNote.topicId) ?? null
+    : null;
+
+  const viewCluster = sheetNote
+    ? getClusterForNote(sheetNote, notes)
+    : null;
+
+  const canPromoteTopic =
+    !!sheetNote &&
+    !!viewCluster &&
+    canPromoteCluster(viewCluster, topics, dismissedClusterKeys);
+
+  const promoteDefaultTitle = sheetNote
+    ? defaultTitleFromNote(sheetNote.text, sheetNote.roomId)
+    : "";
+
+  const pendingTopicTitle = pendingTopic
+    ? getTopicById(pendingTopic.topicId)?.title
+    : null;
 
   const zoomPercent = Math.round(scale * 100);
+
+  const createGuide = isCreatingLeaf
+    ? {
+        notes: roomNotes,
+        filteredNotes: filteredRoomNotes,
+        filter: noteFilter,
+        onFilterChange: (patch: Partial<LeafNotePanelFilter>) =>
+          setNoteFilter((prev) => ({ ...prev, ...patch })),
+        onSelectNote: (note: LeafNote) =>
+          setNoteDialog({ kind: "view", note }),
+      }
+    : undefined;
 
   return (
     <div className="room-interior room-map-view">
@@ -329,7 +458,17 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
           <span className="room-interior-badge">{floorId} · Room View</span>
           <LeafToolbar
             dropMode={leafDropMode}
-            onToggleDropMode={() => setLeafDropMode(!leafDropMode)}
+            onToggleDropMode={() => {
+              setLeafDropMode((active) => {
+                const next = !active;
+                if (!next) {
+                  setNoteDialog(null);
+                  clearPendingTopic();
+                  setCreateTopicId(null);
+                }
+                return next;
+              });
+            }}
             noteCount={roomNotes.length}
           />
         </div>
@@ -345,14 +484,19 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
         )}
       </div>
 
-      {leafDropMode && (
+      {isPlacingLeaf && (
         <div className="room-interior-drop-banner">
-          <span>Click anywhere to drop a Leaf</span>
+          <span>
+            点击地图选择便签放置位置
+            {pendingTopicTitle && (
+              <> · 参与话题：<strong>{pendingTopicTitle}</strong></>
+            )}
+          </span>
         </div>
       )}
 
       <div
-        className={`room-interior-canvas${leafDropMode ? " room-interior-canvas--drop-mode" : ""}${isDragging ? " room-interior-canvas--dragging" : ""}`}
+        className={`room-interior-canvas${isPlacingLeaf ? " room-interior-canvas--drop-mode" : ""}${isDragging ? " room-interior-canvas--dragging" : ""}`}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -393,12 +537,17 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
                 onClick={() => setViewpointDialog(vp)}
               />
             ))}
-            {roomNotes.map((note) => (
+            {mapNotes.map((note) => (
               <LeafMarker
                 key={note.id}
                 x={note.x}
                 y={note.y}
                 text={note.text}
+                iconId={note.iconId}
+                tags={note.tags}
+                status={note.status}
+                helpfulCount={note.helpfulCount}
+                isHeating={isNoteHeating(note)}
                 onClick={() => setNoteDialog({ kind: "view", note })}
               />
             ))}
@@ -451,9 +600,39 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
         open={noteDialog !== null}
         mode={sheetMode ?? "create"}
         roomLabel={room.label}
+        note={sheetNote}
         initialText={sheetText}
-        onClose={() => setNoteDialog(null)}
-        onSave={(text) => {
+        initialTags={sheetTags}
+        initialIconId={sheetIconId}
+        initialIconLocked={sheetIconLocked}
+        hasLiked={sheetNote ? hasLiked(sheetNote.id) : false}
+        activeTopics={activeTopics}
+        selectedTopicId={createTopicId}
+        onTopicChange={setCreateTopicId}
+        linkedTopic={linkedTopic}
+        isHeating={sheetNote ? isNoteHeating(sheetNote) : false}
+        canPromoteTopic={canPromoteTopic}
+        promoteDefaultTitle={promoteDefaultTitle}
+        onPromoteTopic={
+          sheetNote
+            ? (title) => {
+                const topic = createTopicFromPromotion({
+                  title,
+                  originNote: sheetNote,
+                });
+                updateNote(sheetNote.id, { topicId: topic.id });
+              }
+            : undefined
+        }
+        guide={createGuide}
+        onClose={() => {
+          setNoteDialog(null);
+          if (leafDropMode && noteDialog?.kind === "create") {
+            clearPendingTopic();
+            setCreateTopicId(null);
+          }
+        }}
+        onSave={({ text, tags, iconId, iconLocked }) => {
           if (!noteDialog) return;
           if (noteDialog.kind === "create" && currentRoomId) {
             addNote({
@@ -463,13 +642,32 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
               x: noteDialog.x,
               y: noteDialog.y,
               text,
+              tags,
+              iconId,
+              iconLocked,
+              topicId: createTopicId,
             });
+            clearPendingTopic();
+            setCreateTopicId(null);
           } else if (noteDialog.kind === "edit") {
-            updateNote(noteDialog.note.id, text);
+            updateNote(noteDialog.note.id, {
+              text,
+              tags,
+              iconId,
+              iconLocked,
+            });
           }
           setNoteDialog(null);
           setLeafDropMode(false);
         }}
+        onMarkHelpful={
+          sheetNote ? () => markHelpful(sheetNote.id) : undefined
+        }
+        onSetStatus={
+          sheetNote
+            ? (status) => setNoteStatus(sheetNote.id, status)
+            : undefined
+        }
         onDelete={
           noteDialog?.kind === "view" || noteDialog?.kind === "edit"
             ? () => {

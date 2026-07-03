@@ -1,6 +1,8 @@
 import { useId, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-
+import type { LeafNoteIconId, LeafNoteStatus, LeafNoteTagId } from "../../types/leafNote";
+import { getIconEmoji } from "../../utils/leafNoteIcons";
+import { getStatusLabel, getTagDef } from "../../utils/leafNoteTags";
 export function LeafIcon({ size = 20 }: { size?: number }) {
   const gradId = useId();
 
@@ -47,10 +49,25 @@ interface LeafMarkerProps {
   x: number;
   y: number;
   text: string;
+  iconId?: LeafNoteIconId;
+  tags?: LeafNoteTagId[];
+  status?: LeafNoteStatus;
+  helpfulCount?: number;
+  isHeating?: boolean;
   onClick?: (e: React.MouseEvent) => void;
 }
 
-export function LeafMarker({ x, y, text, onClick }: LeafMarkerProps) {
+export function LeafMarker({
+  x,
+  y,
+  text,
+  iconId = "leaf",
+  tags = [],
+  status = "active",
+  helpfulCount = 0,
+  isHeating = false,
+  onClick,
+}: LeafMarkerProps) {
   const [hovered, setHovered] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
@@ -74,10 +91,14 @@ export function LeafMarker({ x, y, text, onClick }: LeafMarkerProps) {
     e.stopPropagation();
   }, []);
 
+  const likeLabel =
+    helpfulCount > 99 ? "99+" : String(helpfulCount);
+  const badgeWidth = Math.max(26, 16 + likeLabel.length * 6);
+
   return (
     <>
       <g
-        className="leaf-note-marker"
+        className={`leaf-note-marker${status !== "active" ? " leaf-note-marker--muted" : ""}`}
         transform={`translate(${x}, ${y})`}
         onClick={(e) => {
           e.stopPropagation();
@@ -89,10 +110,44 @@ export function LeafMarker({ x, y, text, onClick }: LeafMarkerProps) {
         onMouseLeave={handleLeave}
         style={{ cursor: "pointer" }}
       >
-        <circle r={14} fill="transparent" />
-        <g className="leaf-note-marker-icon" transform="translate(-10, -10)">
-          <LeafIcon size={20} />
+        <circle r={14} fill="rgba(255,255,255,0.85)" stroke="#c8e6c9" strokeWidth="1" />
+        <text
+          className="leaf-note-marker-emoji"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize="15"
+          y={1}
+        >
+          {getIconEmoji(iconId)}
+        </text>
+        <g className="leaf-note-marker-like" transform="translate(12, -10)">
+          <rect
+            className="leaf-note-marker-like-bg"
+            x={0}
+            y={0}
+            width={badgeWidth}
+            height={16}
+            rx={8}
+            ry={8}
+          />
+          <text
+            className="leaf-note-marker-like-text"
+            x={badgeWidth / 2}
+            y={11}
+            textAnchor="middle"
+            fontSize="9"
+          >
+            ♥{likeLabel}
+          </text>
         </g>
+        {isHeating && (
+          <g className="leaf-note-marker-heating" transform="translate(-18, -10)">
+            <rect x={0} y={0} width={28} height={14} rx={7} ry={7} />
+            <text x={14} y={10} textAnchor="middle" fontSize="8">
+              🔥升温
+            </text>
+          </g>
+        )}
       </g>
 
       {hovered &&
@@ -102,9 +157,26 @@ export function LeafMarker({ x, y, text, onClick }: LeafMarkerProps) {
             style={{ left: tooltipPos.x + 14, top: tooltipPos.y - 8 }}
             role="tooltip"
           >
-            <span className="leaf-note-tooltip-label">Leaf Note</span>
+            {tags.length > 0 && (
+              <div className="leaf-note-tooltip-tags">
+                {tags.slice(0, 3).map((id) => (
+                  <span
+                    key={id}
+                    className="leaf-note-tooltip-tag"
+                    style={{ color: getTagDef(id).color }}
+                  >
+                    #{getTagDef(id).label}
+                  </span>
+                ))}
+              </div>
+            )}
+            <span className="leaf-note-tooltip-label">
+              {status !== "active" ? getStatusLabel(status) : "便签"}
+            </span>
             <p className="leaf-note-tooltip-text">{truncateText(text, 120)}</p>
-            <span className="leaf-note-tooltip-hint">Click to open</span>
+            <span className="leaf-note-tooltip-hint">
+              有用 {helpfulCount} · 点击查看
+            </span>
           </div>,
           document.body
         )}
