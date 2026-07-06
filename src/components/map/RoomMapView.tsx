@@ -373,6 +373,26 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
     setScale((s) => clampScale(s - MAP_INTERACTION.scaleStep));
   }, []);
 
+  const dialogNoteId =
+    noteDialog && noteDialog.kind !== "create" ? noteDialog.note.id : null;
+
+  const sheetNote = useMemo(
+    () =>
+      dialogNoteId
+        ? (notes.find((n) => n.id === dialogNoteId) ?? null)
+        : null,
+    [notes, dialogNoteId]
+  );
+
+  const sheetTags = useMemo(() => {
+    if (noteDialog?.kind === "create") {
+      const topic = createTopicId ? getTopicById(createTopicId) : null;
+      if (topic?.suggestedTags.length) return [...topic.suggestedTags];
+      return [];
+    }
+    return sheetNote?.tags ?? [];
+  }, [noteDialog, createTopicId, getTopicById, sheetNote?.tags]);
+
   if (!room || !currentRoomId) {
     return <div className="room-map-loading">加载房间…</div>;
   }
@@ -386,28 +406,8 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
           ? "view"
           : null;
 
-  const dialogNoteId =
-    noteDialog && noteDialog.kind !== "create" ? noteDialog.note.id : null;
-
-  const sheetNote = useMemo(
-    () =>
-      dialogNoteId
-        ? (notes.find((n) => n.id === dialogNoteId) ?? null)
-        : null,
-    [notes, dialogNoteId]
-  );
-
   const sheetText =
     noteDialog?.kind === "create" ? "" : (sheetNote?.text ?? "");
-
-  const sheetTags = useMemo(() => {
-    if (noteDialog?.kind === "create") {
-      const topic = createTopicId ? getTopicById(createTopicId) : null;
-      if (topic?.suggestedTags.length) return [...topic.suggestedTags];
-      return [];
-    }
-    return sheetNote?.tags ?? [];
-  }, [noteDialog, createTopicId, getTopicById, sheetNote?.tags]);
 
   const sheetIconId =
     noteDialog?.kind === "create" ? undefined : sheetNote?.iconId;
@@ -508,7 +508,7 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
           className="room-interior-stage room-map-stage"
           style={{
             transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
-            transformOrigin: "center center",
+            transformOrigin: "top center",
           }}
         >
           {room.imageSrc ? (

@@ -9,7 +9,14 @@
 import type { FloorId } from "../types/indoor";
 import type { RoomDef, ViewpointDef, StairFloorLink, ElevatorFloorLink, OverviewRect } from "../types/room";
 import { BUILDING_ID, getFloorModelOffset } from "./floorGeometry";
-import { ZONES_0F, ZONES_1F, VERTICAL_SHAFT_CENTERS, iconZoneRect } from "./svgFloorZones";
+import {
+  ZONES_0F,
+  ZONES_1F,
+  ZONES_UPPER,
+  VERTICAL_SHAFT_CENTERS,
+  iconZoneRect,
+  type UpperFloorZones,
+} from "./svgFloorZones";
 import {
   ELEVATOR_FLOOR_LINKS,
   STAIR_FLOOR_LINKS,
@@ -97,7 +104,9 @@ function shaftIconRect(
     const { w, h } = isStair ? ZONES_0F.stairIconSize : ZONES_0F.elevIconSize;
     return iconZoneRect(centerX, centerY, w, h);
   }
-  return iconZoneRect(centerX, centerY, isStair ? 48 : 44, isStair ? 40 : 44);
+  // 2F~5F 与 0F/1F 图标尺寸一致（楼梯 15×15 图标、电梯 13×13 双联簇），选区同款收紧
+  const { w, h } = isStair ? ZONES_1F.stairIconSize : ZONES_1F.elevIconSize;
+  return iconZoneRect(centerX, centerY, w, h);
 }
 
 function makeVerticalLanding(
@@ -144,10 +153,23 @@ function buildUpperFloorShaftNeighbors(
   const elevKey = elevSiblingKey(shaft.shaftKey);
   const stairRoom = `${prefix}${stairSiblingKey(shaft.shaftKey)}`;
 
-  if (shaft.kind === "stair") {
-    return elevKey ? { up: `${prefix}${elevKey}` } : {};
+  const base: RoomDef["neighbors"] =
+    shaft.kind === "stair"
+      ? elevKey
+        ? { up: `${prefix}${elevKey}` }
+        : {}
+      : { down: stairRoom };
+
+  // 2F~5F：楼梯/电梯接入本翼块走廊（SA/SB/SC/SD）
+  if (UPPER_FLOOR_IDS.has(floorId)) {
+    const block = shaft.shaftKey.split("-")[0];
+    const blockCorridorId = `${prefix}${block}-corridor`;
+    return shaft.isWest
+      ? { ...base, right: blockCorridorId }
+      : { ...base, left: blockCorridorId };
   }
-  return { down: stairRoom };
+
+  return base;
 }
 
 function patchShaftSiblingLinks(landings: RoomDef[], floorId: FloorId): void {
@@ -176,6 +198,8 @@ function patchShaftSiblingLinks(landings: RoomDef[], floorId: FloorId): void {
     if (sdElev) sdElev.neighbors.right = `${prefix}sd-stair-west`;
   }
 }
+
+const UPPER_FLOOR_IDS = new Set<FloorId>(["2F", "3F", "4F", "5F"]);
 
 function buildVerticalLandings(floorId: FloorId): RoomDef[] {
   const landings: RoomDef[] = [];
@@ -310,7 +334,7 @@ const ROOMS_0F: RoomDef[] = [
     "entrance-corridor",
     "地下停车场入口通道",
     Z0.walkable.entranceCorridor,
-    { up: "sb-corridor", down: "sd-corridor", right: "sb-atrium" },
+    { up: "sb-corridor", down: "sd-corridor", right: "sc-atrium" },
     "corridor-v"
   ),
   make0FCorridor("sa-corridor", "SA 走廊", C0.sa, {
@@ -341,17 +365,17 @@ const ROOMS_0F: RoomDef[] = [
   make0FCorridor("sb-corridor-east", "SB 东翼走廊", C0.sbEast, {
     left: "sb-corridor",
     right: "sb-stair-east",
-    down: "sb-atrium",
+    down: "sc-atrium",
   }),
   make0FCorridor(
-    "sb-atrium",
-    "地下停车场SB中庭",
-    Z0.walkable.sbAtrium,
+    "sc-atrium",
+    "地下停车场SC中庭",
+    Z0.walkable.scAtrium,
     {
       left: "entrance-corridor",
       up: "sb-corridor",
       right: "sb-corridor-east",
-      down: "sc-corridor-h",
+      down: "sc-stair-west",
     }
   ),
   {
@@ -406,31 +430,21 @@ const ROOMS_0F: RoomDef[] = [
     left: "sb-corridor-east",
     down: "sb-corridor",
   }),
-  make0FCorridor("sc-corridor-h", "SC 过道", Z0.scCorridorH, {
-    up: "sb-atrium",
-    left: "sc-stair-west",
-    right: "sc-stair-east",
-  }),
   makeStairRoom("sc-stair-east", "SC 楼梯（东）", S0.scEast.x, S0.scEast.y, {
-    left: "sc-corridor-h",
+    left: "sc-stair-west",
     up: "sc-elev-east",
   }),
   makeElevatorRoom("sc-elev-east", "SC 电梯（东）", E0.scEast.x, E0.scEast.y, {
-    left: "sc-corridor-h",
+    left: "sc-atrium",
     down: "sc-stair-east",
   }),
   make0FCorridor(
     "sd-corridor",
     "SD 入口过道",
     Z0.walkable.sdCorridorNarrow,
-    { up: "entrance-corridor", left: "sd-corridor-west", down: "sd-corridor-h" },
+    { up: "entrance-corridor", left: "sd-corridor-west", down: "sd085-room" },
     "corridor-v"
   ),
-  make0FCorridor("sd-corridor-h", "SD 走廊", C0.sdH, {
-    up: "sd-corridor",
-    right: "sd-east-open",
-    down: "sd085-room",
-  }),
   make0FCorridor(
     "sd-corridor-west",
     "SD 西翼走廊",
@@ -439,7 +453,7 @@ const ROOMS_0F: RoomDef[] = [
     "corridor-v"
   ),
   make0FCorridor("sd-east-open", "SD 东前厅", Z0.walkable.sdEastOpen, {
-    left: "sd-corridor-h",
+    left: "sd085-room",
     right: "sd-stair-east",
   }),
   {
@@ -451,14 +465,15 @@ const ROOMS_0F: RoomDef[] = [
     placeholder: "room",
     overviewRect: Z0.rooms.sd085,
     imageSrc: "/maps/rooms/sd085_0F.png",
-    neighbors: { up: "sd-corridor-h" },
+    neighbors: { up: "sd-corridor", right: "sd-east-open" },
   },
   makeStairRoom("sd-stair-east", "SD 楼梯（东）", S0.sdEast.x, S0.sdEast.y, {
     left: "sd-east-open",
   }),
   makeStairRoom("sc-stair-west", "SC 楼梯（西）", S0.scWest.x, S0.scWest.y, {
+    up: "sc-atrium",
     down: "sd-corridor-west",
-    right: "sc-corridor-h",
+    right: "sc-stair-east",
   }),
   makeStairRoom("sd-stair-west", "SD 楼梯（西）", S0.sdWest.x, S0.sdWest.y, {
     up: "sd-corridor-west",
@@ -469,19 +484,20 @@ const ROOMS_0F: RoomDef[] = [
   }),
 ];
 
-/** 1F 走廊段（矩形直接取自 SVG 白色走道） */
+/** 1F 走廊 / 通道（灰竖条为翼楼走廊，块间短灰条为通道） */
 function make1FCorridor(
   id: string,
   label: string,
   overviewRect: OverviewRect,
-  neighbors: RoomDef["neighbors"]
+  neighbors: RoomDef["neighbors"],
+  orientation: "h" | "v" = "h"
 ): RoomDef {
   return {
     id,
     label,
     floorId: "1F",
     zoneType: "corridor",
-    placeholder: "corridor-h",
+    placeholder: orientation === "v" ? "corridor-v" : "corridor-h",
     ...ROOM_VIEW,
     overviewRect,
     neighbors,
@@ -527,48 +543,116 @@ function make1FToilet(
 }
 
 const Z1 = ZONES_1F;
+const W1 = Z1.wingCorridors;
+const P1 = Z1.passages;
+const B1 = Z1.spineBridges;
 const R1 = Z1.rooms;
 const T1 = Z1.toilets;
 
 const ROOMS_1F: RoomDef[] = [
-  make1FCorridor("1f-spine", "主通道", Z1.spine, {
-    up: "1f-sb-corridor-west",
-    down: "1f-sd-corridor-west",
+  make1FCorridor("1f-spine", "中通道", Z1.spine, {
+    up: "1f-sb-spine-bridge-west",
+    down: "1f-sc-spine-bridge-west",
     left: "1f-sc-stair-west",
     right: "1f-sc-corridor-east",
   }),
-  make1FCorridor("1f-sa-corridor-west", "SA 西走廊", Z1.corridors.westSa, {
+  // —— 西翼灰走廊（竖向 #f5f5f5）——
+  make1FCorridor("1f-sa-corridor-west", "SA 西走廊", W1.westSa, {
     left: "1f-sa-stair-west",
-    right: "1f-sa-corridor-east",
-    down: "1f-sb-corridor-west",
-  }),
-  make1FCorridor("1f-sa-corridor-east", "SA 东走廊", Z1.corridors.eastSa, {
-    left: "1f-sa-corridor-west",
-    right: "1f-sa-stair-east",
-    down: "1f-sb-corridor-east",
-  }),
-  make1FCorridor("1f-sb-corridor-west", "SB 西走廊", Z1.corridors.westSb, {
-    up: "1f-sa-corridor-west",
+    right: "1f-sa-spine-bridge-west",
+    down: "1f-sasb-passage-west",
+  }, "v"),
+  make1FCorridor("1f-sb-corridor-west", "SB 西走廊", W1.westSb, {
+    up: "1f-sasb-passage-west",
     left: "1f-sb-stair-west",
-    right: "1f-sb-corridor-east",
-    down: "1f-spine",
-  }),
-  make1FCorridor("1f-sb-corridor-east", "SB 东走廊", Z1.corridors.eastSb, {
-    up: "1f-sa-corridor-east",
-    left: "1f-sb-corridor-west",
-    right: "1f-sb-stair-east",
-    down: "1f-sc-corridor-east",
-  }),
-  make1FCorridor("1f-sc-corridor-east", "SC 东走廊", Z1.corridors.eastSc, {
-    up: "1f-sb-corridor-east",
-    left: "1f-spine",
-    right: "1f-sc-stair-east",
-    down: "1f-sd-corridor-west",
-  }),
-  make1FCorridor("1f-sd-corridor-west", "SD 西走廊", Z1.corridors.westSd, {
-    up: "1f-spine",
+    right: "1f-sb-spine-bridge-west",
+    down: "1f-sbsc-passage-west",
+  }, "v"),
+  make1FCorridor("1f-sc-corridor-west", "SC 西走廊", W1.westSc, {
+    up: "1f-sbsc-passage-west",
+    left: "1f-sc-stair-west",
+    right: "1f-sc-spine-bridge-west",
+    down: "1f-scsd-passage-west",
+  }, "v"),
+  make1FCorridor("1f-sd-corridor-west", "SD 西走廊", W1.westSd, {
+    up: "1f-scsd-passage-west",
     left: "1f-sd-stair-west",
     right: "1f-spine",
+  }, "v"),
+  // —— 西翼块间通道 ——
+  make1FCorridor("1f-sasb-passage-west", "SASB 西通道", P1.westSaSb, {
+    up: "1f-sa-corridor-west",
+    down: "1f-sb-corridor-west",
+  }, "v"),
+  make1FCorridor("1f-sbsc-passage-west", "SBSC 西通道", P1.westSbSc, {
+    up: "1f-sb-corridor-west",
+    down: "1f-sc-corridor-west",
+  }, "v"),
+  make1FCorridor("1f-scsd-passage-west", "SCSD 西通道", P1.westScSd, {
+    up: "1f-sc-corridor-west",
+    down: "1f-sd-corridor-west",
+  }, "v"),
+  // —— 西翼连中通道（白色横向）——
+  make1FCorridor("1f-sa-spine-bridge-west", "SA 西连廊", B1.westSa, {
+    left: "1f-sa-corridor-west",
+    right: "1f-sa-corridor-east",
+  }),
+  make1FCorridor("1f-sb-spine-bridge-west", "SB 西连廊", B1.westSb, {
+    left: "1f-sb-corridor-west",
+    right: "1f-spine",
+  }),
+  make1FCorridor("1f-sc-spine-bridge-west", "SC 西连廊", B1.westSc, {
+    left: "1f-sc-corridor-west",
+    right: "1f-spine",
+  }),
+  // —— 东翼灰走廊 ——
+  make1FCorridor("1f-sa-corridor-east", "SA 东走廊", W1.eastSa, {
+    left: "1f-sa-spine-bridge-west",
+    right: "1f-sa-stair-east",
+    down: "1f-sasb-passage-east",
+  }, "v"),
+  make1FCorridor("1f-sb-corridor-east", "SB 东走廊", W1.eastSb, {
+    up: "1f-sasb-passage-east",
+    left: "1f-sb-corridor-west",
+    right: "1f-sb-stair-east",
+    down: "1f-sbsc-passage-east",
+  }, "v"),
+  make1FCorridor("1f-sc-corridor-east", "SC 东走廊", W1.eastSc, {
+    up: "1f-sbsc-passage-east",
+    left: "1f-spine",
+    right: "1f-sc-stair-east",
+    down: "1f-scsd-passage-east",
+  }, "v"),
+  make1FCorridor("1f-sd-corridor-east", "SD 东走廊", W1.eastSd, {
+    up: "1f-scsd-passage-east",
+    left: "1f-spine",
+    right: "1f-sd-stair-east",
+  }, "v"),
+  // —— 东翼块间通道 ——
+  make1FCorridor("1f-sasb-passage-east", "SASB 东通道", P1.eastSaSb, {
+    up: "1f-sa-corridor-east",
+    down: "1f-sb-corridor-east",
+  }, "v"),
+  make1FCorridor("1f-sbsc-passage-east", "SBSC 东通道", P1.eastSbSc, {
+    up: "1f-sb-corridor-east",
+    down: "1f-sc-corridor-east",
+  }, "v"),
+  make1FCorridor("1f-scsd-passage-east", "SCSD 东通道", P1.eastScSd, {
+    up: "1f-sc-corridor-east",
+    down: "1f-sd-corridor-east",
+  }, "v"),
+  // —— 东翼连中通道 ——
+  make1FCorridor("1f-sa-spine-bridge-east", "SA 东连廊", B1.eastSa, {
+    left: "1f-sa-corridor-west",
+    right: "1f-sa-corridor-east",
+  }),
+  make1FCorridor("1f-sb-spine-bridge-east", "SB 东连廊", B1.eastSb, {
+    left: "1f-spine",
+    right: "1f-sb-corridor-east",
+  }),
+  make1FCorridor("1f-sc-spine-bridge-east", "SC 东连廊", B1.eastSc, {
+    left: "1f-spine",
+    right: "1f-sc-corridor-east",
   }),
   make1FRoom("1f-sa164", "SA164", R1.SA164, { down: "1f-sa169", right: "1f-sa-corridor-west" }),
   make1FRoom("1f-sa169", "SA169", R1.SA169, { up: "1f-sa164", right: "1f-sa-corridor-west" }),
@@ -577,25 +661,178 @@ const ROOMS_1F: RoomDef[] = [
   make1FRoom("1f-sb102", "SB102", R1.SB102, { left: "1f-sb-corridor-east", down: "1f-sb120" }),
   make1FRoom("1f-sb120", "SB120", R1.SB120, { up: "1f-sb102", down: "1f-sb123" }),
   make1FRoom("1f-sb123", "SB123", R1.SB123, { up: "1f-sb120" }),
-  make1FRoom("1f-sc176", "SC176", R1.SC176, { down: "1f-sc162", right: "1f-spine" }),
+  make1FRoom("1f-sc176", "SC176", R1.SC176, { down: "1f-sc162", right: "1f-sc-corridor-west" }),
   make1FRoom("1f-sc162", "SC162", R1.SC162, { up: "1f-sc176", down: "1f-sc169" }),
-  make1FRoom("1f-sc169", "SC169", R1.SC169, { up: "1f-sc162", right: "1f-spine" }),
+  make1FRoom("1f-sc169", "SC169", R1.SC169, { up: "1f-sc162", right: "1f-sc-corridor-west" }),
   make1FRoom("1f-sc140", "SC140", R1.SC140, { left: "1f-sc-corridor-east" }),
   make1FRoom("1f-sd154", "SD154", R1.SD154, { up: "1f-sd-corridor-west" }),
-  make1FRoom("1f-sd102", "SD102", R1.SD102, { left: "1f-spine", down: "1f-sd114" }),
+  make1FRoom("1f-sd102", "SD102", R1.SD102, { left: "1f-sd-corridor-east", down: "1f-sd114" }),
   make1FRoom("1f-sd114", "SD114", R1.SD114, { up: "1f-sd102", down: "1f-sd120" }),
   make1FRoom("1f-sd120", "SD120", R1.SD120, { up: "1f-sd114" }),
   make1FToilet("1f-sa-wc", "SA 洗手间", T1.saWest, { right: "1f-sa-corridor-west" }),
   make1FToilet("1f-sb-wc", "SB 洗手间", T1.sbEast, { left: "1f-sb-corridor-east" }),
-  make1FToilet("1f-sc-wc", "SC 洗手间", T1.scWest, { right: "1f-spine" }),
-  make1FToilet("1f-sd-wc", "SD 洗手间", T1.sdEast, { left: "1f-spine" }),
+  make1FToilet("1f-sc-wc", "SC 洗手间", T1.scWest, { right: "1f-sc-corridor-west" }),
+  make1FToilet("1f-sd-wc", "SD 洗手间", T1.sdEast, { left: "1f-sd-corridor-east" }),
   ...buildVerticalLandings("1F"),
 ];
 
-const ROOMS_2F: RoomDef[] = buildVerticalLandings("2F");
-const ROOMS_3F: RoomDef[] = buildVerticalLandings("3F");
-const ROOMS_4F: RoomDef[] = buildVerticalLandings("4F");
-const ROOMS_5F: RoomDef[] = buildVerticalLandings("5F");
+/**
+ * 2F～5F 通用房间图 — 教室先用占位贴图（RoomPlaceholder），后续替换实拍图
+ * 各翼 SA/SB/SC/SD 东西向楼内走廊 + 2F/3F 贯穿东西翼纵向走廊；4F/5F 无翼走廊时由块走廊接楼梯。
+ */
+const UPPER_BLOCKS = ["sa", "sb", "sc", "sd"] as const;
+type UpperBlock = (typeof UPPER_BLOCKS)[number];
+
+function blockFromRoomLabel(label: string): UpperBlock {
+  const b = label.slice(0, 2).toLowerCase();
+  return UPPER_BLOCKS.includes(b as UpperBlock) ? (b as UpperBlock) : "sa";
+}
+
+function makeUpperFloorBlockCorridor(
+  floorId: FloorId,
+  block: UpperBlock,
+  overviewRect: OverviewRect,
+  neighbors: RoomDef["neighbors"]
+): RoomDef {
+  const prefix = `${floorId.toLowerCase()}-`;
+  return {
+    id: `${prefix}${block}-corridor`,
+    label: `${block.toUpperCase()} 走廊`,
+    floorId,
+    zoneType: "corridor",
+    placeholder: "corridor-h",
+    ...ROOM_VIEW,
+    overviewRect,
+    neighbors,
+  };
+}
+
+function buildBlockCorridorNeighbors(
+  floorId: FloorId,
+  zones: UpperFloorZones
+): Record<UpperBlock, RoomDef["neighbors"]> {
+  const prefix = `${floorId.toLowerCase()}-`;
+  const hasWings = zones.westCorridor != null && zones.eastCorridor != null;
+
+  const wingEnds = (block: UpperBlock) =>
+    hasWings
+      ? { left: `${prefix}west-corridor`, right: `${prefix}east-corridor` }
+      : {
+          left: `${prefix}${block}-stair-west`,
+          right: `${prefix}${block}-stair-east`,
+        };
+
+  return {
+    sa: { ...wingEnds("sa"), down: `${prefix}sb-corridor` },
+    sb: {
+      ...wingEnds("sb"),
+      up: `${prefix}sa-corridor`,
+      down: `${prefix}sc-corridor`,
+    },
+    sc: {
+      ...wingEnds("sc"),
+      up: `${prefix}sb-corridor`,
+      down: `${prefix}sd-corridor`,
+    },
+    sd: { ...wingEnds("sd"), up: `${prefix}sc-corridor` },
+  };
+}
+
+function makeUpperFloorCorridor(
+  floorId: FloorId,
+  side: "west" | "east",
+  overviewRect: OverviewRect
+): RoomDef {
+  const prefix = `${floorId.toLowerCase()}-`;
+  const stairSuffix = side === "west" ? "west" : "east";
+  return {
+    id: `${prefix}${side}-corridor`,
+    label: side === "west" ? "西翼走廊" : "东翼走廊",
+    floorId,
+    zoneType: "corridor",
+    placeholder: "corridor-v",
+    ...ROOM_VIEW,
+    overviewRect,
+    neighbors: {
+      up: `${prefix}sa-stair-${stairSuffix}`,
+      down: `${prefix}sd-stair-${stairSuffix}`,
+      [side === "west" ? "right" : "left"]: `${prefix}sa-corridor`,
+    },
+  };
+}
+
+function makeUpperFloorRoom(
+  floorId: FloorId,
+  label: string,
+  overviewRect: OverviewRect,
+  zones: UpperFloorZones
+): RoomDef {
+  const prefix = `${floorId.toLowerCase()}-`;
+  const block = blockFromRoomLabel(label);
+  const blockCorridorId = `${prefix}${block}-corridor`;
+  const corridor = zones.blockCorridors[block];
+  const cx = overviewRect.x + overviewRect.w / 2;
+  const cy = overviewRect.y + overviewRect.h / 2;
+  const corridorCy = corridor.y + corridor.h / 2;
+  const corridorCx = corridor.x + corridor.w / 2;
+
+  const neighbors: RoomDef["neighbors"] = {};
+  if (cx < corridorCx - 30) {
+    neighbors.right = blockCorridorId;
+  } else if (cx > corridorCx + 30) {
+    neighbors.left = blockCorridorId;
+  } else if (cy < corridorCy - 5) {
+    neighbors.down = blockCorridorId;
+  } else {
+    neighbors.up = blockCorridorId;
+  }
+
+  return {
+    id: `${prefix}${label.toLowerCase()}`,
+    label,
+    floorId,
+    zoneType: "room",
+    placeholder: "room",
+    ...ROOM_VIEW,
+    overviewRect,
+    neighbors,
+  };
+}
+
+function buildUpperFloorRooms(floorId: FloorId, zones: UpperFloorZones): RoomDef[] {
+  const blockNeighbors = buildBlockCorridorNeighbors(floorId, zones);
+  const blockCorridors = UPPER_BLOCKS.map((block) =>
+    makeUpperFloorBlockCorridor(
+      floorId,
+      block,
+      zones.blockCorridors[block],
+      blockNeighbors[block]
+    )
+  );
+
+  const wingCorridors: RoomDef[] = [];
+  if (zones.westCorridor) {
+    wingCorridors.push(makeUpperFloorCorridor(floorId, "west", zones.westCorridor));
+  }
+  if (zones.eastCorridor) {
+    wingCorridors.push(makeUpperFloorCorridor(floorId, "east", zones.eastCorridor));
+  }
+
+  const rooms = Object.entries(zones.rooms).map(([label, rect]) =>
+    makeUpperFloorRoom(floorId, label, rect, zones)
+  );
+
+  return [...blockCorridors, ...wingCorridors, ...rooms];
+}
+
+function buildUpperFloorAll(floorId: FloorId, zones: UpperFloorZones): RoomDef[] {
+  return [...buildVerticalLandings(floorId), ...buildUpperFloorRooms(floorId, zones)];
+}
+
+const ROOMS_2F: RoomDef[] = buildUpperFloorAll("2F", ZONES_UPPER["2F"]);
+const ROOMS_3F: RoomDef[] = buildUpperFloorAll("3F", ZONES_UPPER["3F"]);
+const ROOMS_4F: RoomDef[] = buildUpperFloorAll("4F", ZONES_UPPER["4F"]);
+const ROOMS_5F: RoomDef[] = buildUpperFloorAll("5F", ZONES_UPPER["5F"]);
 
 export const VIEWPOINTS_0F: ViewpointDef[] = [
   {
@@ -621,6 +858,10 @@ const ROOMS_BY_FLOOR: Partial<Record<FloorId, RoomDef[]>> = {
 const DEFAULT_BY_FLOOR: Partial<Record<FloorId, string>> = {
   "0F": DEFAULT_ROOM_0F,
   "1F": "1f-sa-corridor-west",
+  "2F": "2f-west-corridor",
+  "3F": "3f-west-corridor",
+  "4F": "4f-sa-corridor",
+  "5F": "5f-sa-corridor",
 };
 
 export function hasRoomNavigation(floorId: FloorId): boolean {

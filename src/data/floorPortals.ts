@@ -52,12 +52,9 @@ function corridorRoom(block: string, west: boolean): string {
   return `1f-${block}-corridor-${west ? "west" : "east"}`;
 }
 
-/** 1F 无 SC 西翼 / SD 东翼走廊时，竖井连通主通道 */
+/** 1F 竖井落地走廊：各翼灰走廊（SC 西翼、SD 东翼已补齐） */
 function corridorRoom1F(block: string, west: boolean): string {
-  const b = block.toLowerCase();
-  if (b === "sc" && west) return "1f-spine";
-  if (b === "sd" && !west) return "1f-spine";
-  return corridorRoom(b, west);
+  return corridorRoom(block, west);
 }
 
 function buildStairShaft(shaftKey: string, west: boolean): VerticalShaft {

@@ -1985,8 +1985,8 @@ html, body, #root {
   min-height: 0;
   background: #eceff1;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: stretch;
 }
 
 .room-interior-canvas--dragging {
@@ -2738,15 +2738,14 @@ html, body, #root {
 
 .room-map-view .room-map-stage {
   position: relative;
-  width: 640px;
-  max-width: min(640px, 100%);
+  width: 100%;
   flex-shrink: 0;
 }
 
-.room-map-image {
+.room-map-image,
+.room-placeholder {
   display: block;
-  width: 640px;
-  max-width: 100%;
+  width: 100%;
   height: auto;
   image-rendering: pixelated;
   image-rendering: crisp-edges;

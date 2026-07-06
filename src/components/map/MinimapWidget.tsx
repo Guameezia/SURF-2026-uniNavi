@@ -232,6 +232,11 @@ export function MinimapWidget({
         )}
         {rooms.map((r) => {
           const { x, y, w, h } = r.overviewRect;
+          const hitPad = Math.max(0, (14 - Math.min(w, h)) / 2);
+          const hitX = x - hitPad;
+          const hitY = y - hitPad;
+          const hitW = w + hitPad * 2;
+          const hitH = h + hitPad * 2;
           const isCurrent = r.id === currentRoomId;
           const isNext = highlightRoomId != null && r.id === highlightRoomId;
           const onRoute =
@@ -239,10 +244,10 @@ export function MinimapWidget({
           return (
             <g key={r.id}>
               <rect
-                x={x}
-                y={y}
-                width={w}
-                height={h}
+                x={hitX}
+                y={hitY}
+                width={hitW}
+                height={hitH}
                 fill={
                   isCurrent
                     ? "rgba(25, 118, 210, 0.45)"
