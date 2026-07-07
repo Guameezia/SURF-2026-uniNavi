@@ -25,6 +25,8 @@ const PARKING_FILLS = new Set(["#ffe6cc", "#d5e8d4", "#dae8fc"]);
 const CORRIDOR_GRAY = "#f5f5f5";
 /** 教室号标签：SA169、SD446W 等 */
 const ROOM_LABEL_RE = /^S[ABCD]\d/;
+/** 宽横幅标注，但仍是可导航目的地 */
+const WIDE_BANNER_ROOMS = new Set(["SA361", "SB434", "SB534"]);
 const UPPER_FLOORS = ["2F", "3F", "4F", "5F"];
 
 function decodeContent(svg) {
@@ -151,17 +153,36 @@ function parseStairCenters(cells) {
     .sort((a, b) => a.y - b.y || a.x - b.x);
 }
 
+/** 同翼可能有连廊/出口楼梯图标，竖井取最靠边的那个 */
+function pickWestStair(stairs, yMin, yMax) {
+  const candidates = stairs.filter(
+    (s) => s.y > yMin && s.y < yMax && s.x < 200
+  );
+  return candidates.length
+    ? candidates.reduce((best, s) => (s.x < best.x ? s : best))
+    : undefined;
+}
+
+function pickEastStair(stairs, yMin, yMax) {
+  const candidates = stairs.filter(
+    (s) => s.y > yMin && s.y < yMax && s.x > 400
+  );
+  return candidates.length
+    ? candidates.reduce((best, s) => (s.x > best.x ? s : best))
+    : undefined;
+}
+
 function assignShaftCenters(stairs, elevators) {
   return {
     stairCenters: {
-      saWest: stairs.find((s) => s.y < 100 && s.x < 200),
-      saEast: stairs.find((s) => s.y < 100 && s.x > 400),
-      sbWest: stairs.find((s) => s.y > 100 && s.y < 320 && s.x < 200),
-      sbEast: stairs.find((s) => s.y > 100 && s.y < 320 && s.x > 400),
-      scWest: stairs.find((s) => s.y > 320 && s.y < 520 && s.x < 200),
-      scEast: stairs.find((s) => s.y > 320 && s.y < 520 && s.x > 400),
-      sdWest: stairs.find((s) => s.y > 520 && s.x < 200),
-      sdEast: stairs.find((s) => s.y > 520 && s.x > 400),
+      saWest: pickWestStair(stairs, -Infinity, 100),
+      saEast: pickEastStair(stairs, -Infinity, 100),
+      sbWest: pickWestStair(stairs, 100, 320),
+      sbEast: pickEastStair(stairs, 100, 320),
+      scWest: pickWestStair(stairs, 320, 520),
+      scEast: pickEastStair(stairs, 320, 520),
+      sdWest: pickWestStair(stairs, 520, Infinity),
+      sdEast: pickEastStair(stairs, 520, Infinity),
     },
     elevatorCenters: {
       saEast: elevators.find((e) => e.center.y < 80 && e.center.x > 400)
@@ -294,8 +315,8 @@ function extractRoomRects(cells) {
   }
   const rooms = {};
   for (const [label, rect] of byLabel) {
-    // 宽横幅（如 SB434 280×50）不是单间房
-    if (rect.w > 150 && rect.h <= 50) continue;
+    // 宽横幅多为跨排标签；白名单内仍保留为可导航房间
+    if (rect.w > 150 && rect.h <= 50 && !WIDE_BANNER_ROOMS.has(label)) continue;
     rooms[label] = {
       x: Math.round(rect.x),
       y: Math.round(rect.y),
@@ -323,6 +344,48 @@ function corridorSideBBox(rects, side) {
     w: Math.round(full.w),
     h: Math.round(full.h),
   };
+}
+
+const UPPER_BLOCKS = ["sa", "sb", "sc", "sd"];
+
+/** 2F/3F 贯穿翼走廊按块走廊 y 中线拆成 SA/SB/SC/SD 四段（物理连通，逻辑分楼） */
+function splitWingCorridorByBlocks(fullCorridor, blockCorridors) {
+  const centers = UPPER_BLOCKS.map((b) => {
+    const bc = blockCorridors[b];
+    return bc.y + bc.h / 2;
+  });
+  const boundaries = [fullCorridor.y];
+  for (let i = 0; i < UPPER_BLOCKS.length - 1; i++) {
+    boundaries.push(Math.round((centers[i] + centers[i + 1]) / 2));
+  }
+  boundaries.push(fullCorridor.y + fullCorridor.h);
+  return UPPER_BLOCKS.map((block, i) => ({
+    block,
+    rect: {
+      x: Math.round(fullCorridor.x),
+      y: boundaries[i],
+      w: Math.round(fullCorridor.w),
+      h: boundaries[i + 1] - boundaries[i],
+    },
+  }));
+}
+
+/** 西/东翼按楼宇拆分；无贯穿翼走廊时返回 null */
+function extractUpperWingCorridors(rects, blockCorridors) {
+  const westFull = corridorSideBBox(rects, "west");
+  const eastFull = corridorSideBBox(rects, "east");
+  if (!westFull || !eastFull) return null;
+
+  const wingCorridors = {};
+  for (const { block, rect } of splitWingCorridorByBlocks(westFull, blockCorridors)) {
+    const key = `west${block.charAt(0).toUpperCase()}${block.slice(1)}`;
+    wingCorridors[key] = rect;
+  }
+  for (const { block, rect } of splitWingCorridorByBlocks(eastFull, blockCorridors)) {
+    const key = `east${block.charAt(0).toUpperCase()}${block.slice(1)}`;
+    wingCorridors[key] = rect;
+  }
+  return wingCorridors;
 }
 
 /** SA/SB/SC/SD 东西向楼内走廊：合并同层 y 相近的灰条 */
@@ -373,11 +436,11 @@ function parseUpperFloorZones(rects, cells) {
   );
   const toilets = groupToiletsByWing(parseToiletIcons(cells));
 
+  const blockCorridors = extractBlockCorridors(rects);
   return {
     rooms,
-    westCorridor: corridorSideBBox(rects, "west"),
-    eastCorridor: corridorSideBBox(rects, "east"),
-    blockCorridors: extractBlockCorridors(rects),
+    wingCorridors: extractUpperWingCorridors(rects, blockCorridors),
+    blockCorridors,
     stairCenters,
     elevatorCenters,
     toilets,
@@ -518,18 +581,37 @@ function fmtBlockCorridors(blockCorridors) {
   return `{\n${lines.join("\n")}\n  }`;
 }
 
+function fmtWingCorridors(wingCorridors) {
+  if (!wingCorridors) return "  wingCorridors: null,";
+  const keys = [
+    "westSa",
+    "westSb",
+    "westSc",
+    "westSd",
+    "eastSa",
+    "eastSb",
+    "eastSc",
+    "eastSd",
+  ];
+  const lines = keys.map(
+    (k) => `    ${k}: ${fmtRect(wingCorridors[k])} satisfies OverviewRect,`
+  );
+  return `  wingCorridors: {\n${lines.join("\n")}\n  },`;
+}
+
+function fmtToilets(toilets) {
+  const lines = Object.entries(toilets)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, r]) => `    ${k}: ${fmtRect(r)},`);
+  return `  toilets: {\n${lines.join("\n")}\n  } satisfies Record<string, OverviewRect>`;
+}
+
 function fmtUpperFloorZones(floorId, zones) {
-  const west = zones.westCorridor
-    ? `  westCorridor: ${fmtRect(zones.westCorridor)} satisfies OverviewRect,`
-    : "  westCorridor: null,";
-  const east = zones.eastCorridor
-    ? `  eastCorridor: ${fmtRect(zones.eastCorridor)} satisfies OverviewRect,`
-    : "  eastCorridor: null,";
   return `export const ZONES_${floorId}: UpperFloorZones = {
   rooms: ${fmtRooms(zones.rooms)},
-${west}
-${east}
+${fmtWingCorridors(zones.wingCorridors)}
   blockCorridors: ${fmtBlockCorridors(zones.blockCorridors)},
+${fmtToilets(zones.toilets)},
 };`;
 }
 

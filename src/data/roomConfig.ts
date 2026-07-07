@@ -712,11 +712,14 @@ function buildBlockCorridorNeighbors(
   zones: UpperFloorZones
 ): Record<UpperBlock, RoomDef["neighbors"]> {
   const prefix = `${floorId.toLowerCase()}-`;
-  const hasWings = zones.westCorridor != null && zones.eastCorridor != null;
+  const hasPerBlockWings = zones.wingCorridors != null;
 
   const wingEnds = (block: UpperBlock) =>
-    hasWings
-      ? { left: `${prefix}west-corridor`, right: `${prefix}east-corridor` }
+    hasPerBlockWings
+      ? {
+          left: `${prefix}${block}-corridor-west`,
+          right: `${prefix}${block}-corridor-east`,
+        }
       : {
           left: `${prefix}${block}-stair-west`,
           right: `${prefix}${block}-stair-east`,
@@ -738,27 +741,124 @@ function buildBlockCorridorNeighbors(
   };
 }
 
-function makeUpperFloorCorridor(
+function makeUpperFloorBlockWingCorridor(
   floorId: FloorId,
+  block: UpperBlock,
   side: "west" | "east",
-  overviewRect: OverviewRect
+  overviewRect: OverviewRect,
+  neighbors: RoomDef["neighbors"]
 ): RoomDef {
-  const prefix = `${floorId.toLowerCase()}-`;
-  const stairSuffix = side === "west" ? "west" : "east";
+  const sideLabel = side === "west" ? "西翼走廊" : "东翼走廊";
   return {
-    id: `${prefix}${side}-corridor`,
-    label: side === "west" ? "西翼走廊" : "东翼走廊",
+    id: `${floorId.toLowerCase()}-${block}-corridor-${side}`,
+    label: `${block.toUpperCase()} ${sideLabel}`,
     floorId,
     zoneType: "corridor",
     placeholder: "corridor-v",
     ...ROOM_VIEW,
     overviewRect,
-    neighbors: {
-      up: `${prefix}sa-stair-${stairSuffix}`,
-      down: `${prefix}sd-stair-${stairSuffix}`,
-      [side === "west" ? "right" : "left"]: `${prefix}sa-corridor`,
-    },
+    neighbors,
   };
+}
+
+function buildPerBlockWingCorridors(
+  floorId: FloorId,
+  wingCorridors: NonNullable<UpperFloorZones["wingCorridors"]>
+): RoomDef[] {
+  const prefix = `${floorId.toLowerCase()}-`;
+  const rooms: RoomDef[] = [];
+
+  for (const side of ["west", "east"] as const) {
+    for (let i = 0; i < UPPER_BLOCKS.length; i++) {
+      const block = UPPER_BLOCKS[i];
+      const rectKey =
+        `${side}${block.charAt(0).toUpperCase()}${block.slice(1)}` as keyof typeof wingCorridors;
+      const prev = i > 0 ? UPPER_BLOCKS[i - 1] : null;
+      const next = i < UPPER_BLOCKS.length - 1 ? UPPER_BLOCKS[i + 1] : null;
+      const stairSuffix = side;
+
+      const neighbors: RoomDef["neighbors"] =
+        side === "west"
+          ? {
+              left: `${prefix}${block}-stair-${stairSuffix}`,
+              right: `${prefix}${block}-corridor`,
+            }
+          : {
+              left: `${prefix}${block}-corridor`,
+              right: `${prefix}${block}-stair-${stairSuffix}`,
+            };
+
+      if (prev) neighbors.up = `${prefix}${prev}-corridor-${side}`;
+      if (next) neighbors.down = `${prefix}${next}-corridor-${side}`;
+
+      rooms.push(
+        makeUpperFloorBlockWingCorridor(
+          floorId,
+          block,
+          side,
+          wingCorridors[rectKey],
+          neighbors
+        )
+      );
+    }
+  }
+
+  return rooms;
+}
+
+/** 2F～5F 洗手间（图标包围框来自 SVG） */
+function makeUpperFloorToilet(
+  id: string,
+  label: string,
+  floorId: FloorId,
+  overviewRect: OverviewRect,
+  neighbors: RoomDef["neighbors"]
+): RoomDef {
+  return {
+    id,
+    label,
+    floorId,
+    zoneType: "room",
+    placeholder: "room",
+    ...ROOM_VIEW,
+    overviewRect,
+    neighbors,
+  };
+}
+
+function toiletNeighborsFromKey(
+  floorId: FloorId,
+  key: string,
+  zones: UpperFloorZones
+): RoomDef["neighbors"] {
+  const prefix = `${floorId.toLowerCase()}-`;
+  const block = key.slice(0, 2).toLowerCase() as UpperBlock;
+  const side = key.slice(2).toLowerCase() as "west" | "east";
+
+  if (zones.wingCorridors) {
+    return side === "west"
+      ? { right: `${prefix}${block}-corridor-west` }
+      : { left: `${prefix}${block}-corridor-east` };
+  }
+  return side === "west"
+    ? { right: `${prefix}${block}-corridor` }
+    : { left: `${prefix}${block}-corridor` };
+}
+
+function buildUpperFloorToilets(
+  floorId: FloorId,
+  zones: UpperFloorZones
+): RoomDef[] {
+  return Object.entries(zones.toilets).map(([key, rect]) => {
+    const block = key.slice(0, 2).toUpperCase();
+    return makeUpperFloorToilet(
+      `${floorId.toLowerCase()}-${key.slice(0, 2).toLowerCase()}-wc`,
+      `${block} 洗手间`,
+      floorId,
+      rect,
+      toiletNeighborsFromKey(floorId, key, zones)
+    );
+  });
 }
 
 function makeUpperFloorRoom(
@@ -810,19 +910,16 @@ function buildUpperFloorRooms(floorId: FloorId, zones: UpperFloorZones): RoomDef
     )
   );
 
-  const wingCorridors: RoomDef[] = [];
-  if (zones.westCorridor) {
-    wingCorridors.push(makeUpperFloorCorridor(floorId, "west", zones.westCorridor));
-  }
-  if (zones.eastCorridor) {
-    wingCorridors.push(makeUpperFloorCorridor(floorId, "east", zones.eastCorridor));
-  }
+  const wingCorridors = zones.wingCorridors
+    ? buildPerBlockWingCorridors(floorId, zones.wingCorridors)
+    : [];
 
   const rooms = Object.entries(zones.rooms).map(([label, rect]) =>
     makeUpperFloorRoom(floorId, label, rect, zones)
   );
+  const toilets = buildUpperFloorToilets(floorId, zones);
 
-  return [...blockCorridors, ...wingCorridors, ...rooms];
+  return [...blockCorridors, ...wingCorridors, ...rooms, ...toilets];
 }
 
 function buildUpperFloorAll(floorId: FloorId, zones: UpperFloorZones): RoomDef[] {
@@ -858,8 +955,8 @@ const ROOMS_BY_FLOOR: Partial<Record<FloorId, RoomDef[]>> = {
 const DEFAULT_BY_FLOOR: Partial<Record<FloorId, string>> = {
   "0F": DEFAULT_ROOM_0F,
   "1F": "1f-sa-corridor-west",
-  "2F": "2f-west-corridor",
-  "3F": "3f-west-corridor",
+  "2F": "2f-sa-corridor-west",
+  "3F": "3f-sa-corridor-west",
   "4F": "4f-sa-corridor",
   "5F": "5f-sa-corridor",
 };

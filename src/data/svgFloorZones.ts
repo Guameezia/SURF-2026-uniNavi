@@ -166,15 +166,27 @@ export interface UpperFloorBlockCorridors {
   sd: OverviewRect;
 }
 
+/** 2F/3F 按楼宇拆分的东西翼纵向走廊 */
+export interface UpperFloorWingCorridors {
+  westSa: OverviewRect;
+  westSb: OverviewRect;
+  westSc: OverviewRect;
+  westSd: OverviewRect;
+  eastSa: OverviewRect;
+  eastSb: OverviewRect;
+  eastSc: OverviewRect;
+  eastSd: OverviewRect;
+}
+
 export interface UpperFloorZones {
   /** 教室矩形，key 为房间号标签（如 SA169），来自 CAD 标注文字 */
   rooms: Record<string, OverviewRect>;
-  /** 西翼纵向走廊；4F/5F 无贯穿翼走廊时为 null */
-  westCorridor: OverviewRect | null;
-  /** 东翼纵向走廊；4F/5F 无贯穿翼走廊时为 null */
-  eastCorridor: OverviewRect | null;
+  /** 按楼宇拆分的东西翼纵向走廊；4F/5F 无贯穿翼走廊时为 null */
+  wingCorridors: UpperFloorWingCorridors | null;
   /** SA/SB/SC/SD 东西向楼内走廊 */
   blockCorridors: UpperFloorBlockCorridors;
+  /** 洗手间图标包围框（男女厕成对），key 如 saEast、sbWest */
+  toilets: Record<string, OverviewRect>;
 }
 
 /**
@@ -248,14 +260,28 @@ export const ZONES_2F: UpperFloorZones = {
     SD267: { x: 30, y: 670, w: 30, h: 15 },
     SD273: { x: 5, y: 650, w: 25, h: 35 },
   },
-  westCorridor: { x: 30, y: 50, w: 20, h: 620 } satisfies OverviewRect,
-  eastCorridor: { x: 470, y: 10, w: 20, h: 660 } satisfies OverviewRect,
+  wingCorridors: {
+    westSa: { x: 30, y: 50, w: 20, h: 113 } satisfies OverviewRect,
+    westSb: { x: 30, y: 163, w: 20, h: 203 } satisfies OverviewRect,
+    westSc: { x: 30, y: 366, w: 20, h: 197 } satisfies OverviewRect,
+    westSd: { x: 30, y: 563, w: 20, h: 107 } satisfies OverviewRect,
+    eastSa: { x: 470, y: 10, w: 20, h: 153 } satisfies OverviewRect,
+    eastSb: { x: 470, y: 163, w: 20, h: 203 } satisfies OverviewRect,
+    eastSc: { x: 470, y: 366, w: 20, h: 197 } satisfies OverviewRect,
+    eastSd: { x: 470, y: 563, w: 20, h: 107 } satisfies OverviewRect,
+  },
   blockCorridors: {
     sa: { x: 50, y: 50, w: 420, h: 20 } satisfies OverviewRect,
     sb: { x: 50, y: 255, w: 420, h: 20 } satisfies OverviewRect,
     sc: { x: 50, y: 456, w: 420, h: 20 } satisfies OverviewRect,
     sd: { x: 50, y: 650, w: 420, h: 20 } satisfies OverviewRect,
   },
+  toilets: {
+    saEast: { x: 488, y: 1, w: 14, h: 50 },
+    sbWest: { x: 18, y: 200, w: 14, h: 50 },
+    scEast: { x: 489, y: 399, w: 14, h: 50 },
+    sdWest: { x: 18, y: 600, w: 14, h: 50 },
+  } satisfies Record<string, OverviewRect>,
 };
 export const ZONES_3F: UpperFloorZones = {
   rooms: {
@@ -269,6 +295,7 @@ export const ZONES_3F: UpperFloorZones = {
     SA346: { x: 220, y: 30, w: 20, h: 20 },
     SA350: { x: 180, y: 30, w: 20, h: 20 },
     SA360: { x: 10, y: 35, w: 20, h: 35 },
+    SA361: { x: 10, y: 5, w: 170, h: 30 },
     SB334: { x: 369, y: 235, w: 50, h: 14 },
     SB336: { x: 320, y: 205, w: 150, h: 30 },
     SB338: { x: 300, y: 229, w: 20, h: 20 },
@@ -309,14 +336,28 @@ export const ZONES_3F: UpperFloorZones = {
     SD371: { x: 31, y: 660, w: 20, h: 20 },
     SD373: { x: 6, y: 648, w: 25, h: 32 },
   },
-  westCorridor: { x: 30, y: 50, w: 20, h: 610 } satisfies OverviewRect,
-  eastCorridor: { x: 470, y: 10, w: 20, h: 650 } satisfies OverviewRect,
+  wingCorridors: {
+    westSa: { x: 30, y: 50, w: 20, h: 105 } satisfies OverviewRect,
+    westSb: { x: 30, y: 155, w: 20, h: 200 } satisfies OverviewRect,
+    westSc: { x: 30, y: 355, w: 20, h: 200 } satisfies OverviewRect,
+    westSd: { x: 30, y: 555, w: 20, h: 105 } satisfies OverviewRect,
+    eastSa: { x: 470, y: 10, w: 20, h: 145 } satisfies OverviewRect,
+    eastSb: { x: 470, y: 155, w: 20, h: 200 } satisfies OverviewRect,
+    eastSc: { x: 470, y: 355, w: 20, h: 200 } satisfies OverviewRect,
+    eastSd: { x: 470, y: 555, w: 20, h: 105 } satisfies OverviewRect,
+  },
   blockCorridors: {
     sa: { x: 50, y: 50, w: 420, h: 10 } satisfies OverviewRect,
     sb: { x: 50, y: 250, w: 420, h: 10 } satisfies OverviewRect,
     sc: { x: 50, y: 450, w: 420, h: 10 } satisfies OverviewRect,
     sd: { x: 50, y: 650, w: 420, h: 10 } satisfies OverviewRect,
   },
+  toilets: {
+    saEast: { x: 489, y: 0, w: 14, h: 50 },
+    sbWest: { x: 18, y: 198, w: 14, h: 50 },
+    scEast: { x: 488, y: 399, w: 14, h: 50 },
+    sdWest: { x: 18, y: 600, w: 14, h: 50 },
+  } satisfies Record<string, OverviewRect>,
 };
 export const ZONES_4F: UpperFloorZones = {
   rooms: {
@@ -339,6 +380,7 @@ export const ZONES_4F: UpperFloorZones = {
     SA457: { x: 134, y: 60, w: 21, h: 20 },
     SA461: { x: 60, y: 60, w: 50, h: 20 },
     SB427: { x: 430, y: 210, w: 90, h: 65 },
+    SB434: { x: 130, y: 210, w: 280, h: 50 },
     SB461: { x: 90, y: 260, w: 20, h: 20 },
     SB463: { x: 70, y: 260, w: 20, h: 20 },
     SB465: { x: 50, y: 260, w: 20, h: 20 },
@@ -388,14 +430,19 @@ export const ZONES_4F: UpperFloorZones = {
     SD467: { x: 30, y: 660, w: 20, h: 20 },
     SD473: { x: 5, y: 648, w: 25, h: 32 },
   },
-  westCorridor: null,
-  eastCorridor: null,
+  wingCorridors: null,
   blockCorridors: {
     sa: { x: 50, y: 50, w: 420, h: 10 } satisfies OverviewRect,
     sb: { x: 50, y: 250, w: 381, h: 20 } satisfies OverviewRect,
     sc: { x: 10, y: 450, w: 460, h: 10 } satisfies OverviewRect,
     sd: { x: 50, y: 650, w: 460, h: 10 } satisfies OverviewRect,
   },
+  toilets: {
+    saEast: { x: 490, y: -1, w: 14, h: 50 },
+    sbWest: { x: 18, y: 199, w: 14, h: 50 },
+    scEast: { x: 488, y: 399, w: 14, h: 50 },
+    sdWest: { x: 18, y: 600, w: 14, h: 50 },
+  } satisfies Record<string, OverviewRect>,
 };
 export const ZONES_5F: UpperFloorZones = {
   rooms: {
@@ -418,6 +465,7 @@ export const ZONES_5F: UpperFloorZones = {
     SA557: { x: 134, y: 60, w: 21, h: 20 },
     SA561: { x: 60, y: 60, w: 50, h: 20 },
     SB527: { x: 430, y: 210, w: 90, h: 65 },
+    SB534: { x: 130, y: 210, w: 280, h: 50 },
     SB561: { x: 90, y: 260, w: 20, h: 20 },
     SB563: { x: 70, y: 260, w: 20, h: 20 },
     SB565: { x: 50, y: 260, w: 20, h: 20 },
@@ -469,14 +517,19 @@ export const ZONES_5F: UpperFloorZones = {
     SD567: { x: 30, y: 660, w: 20, h: 20 },
     SD573: { x: 5, y: 648, w: 25, h: 32 },
   },
-  westCorridor: null,
-  eastCorridor: null,
+  wingCorridors: null,
   blockCorridors: {
     sa: { x: 50, y: 50, w: 420, h: 10 } satisfies OverviewRect,
     sb: { x: 50, y: 250, w: 381, h: 20 } satisfies OverviewRect,
     sc: { x: 10, y: 450, w: 460, h: 10 } satisfies OverviewRect,
     sd: { x: 50, y: 650, w: 450, h: 10 } satisfies OverviewRect,
   },
+  toilets: {
+    saEast: { x: 490, y: -2, w: 14, h: 50 },
+    sbWest: { x: 18, y: 199, w: 14, h: 50 },
+    scEast: { x: 488, y: 399, w: 14, h: 50 },
+    sdWest: { x: 18, y: 600, w: 14, h: 50 },
+  } satisfies Record<string, OverviewRect>,
 };
 
 export const ZONES_UPPER: Record<"2F" | "3F" | "4F" | "5F", UpperFloorZones> = {
@@ -539,10 +592,10 @@ export const VERTICAL_SHAFT_CENTERS: Record<
     "sa-stair-west": { x: 61, y: 44 },
     "sa-stair-east": { x: 432, y: 45 },
     "sa-elev-east": { x: 463, y: 30 },
-    "sb-stair-west": { x: 182, y: 160 },
+    "sb-stair-west": { x: 77, y: 243 },
     "sb-stair-east": { x: 442, y: 243 },
     "sb-elev-west": { x: 57, y: 225 },
-    "sc-stair-west": { x: 182, y: 342 },
+    "sc-stair-west": { x: 77, y: 443 },
     "sc-stair-east": { x: 442, y: 443 },
     "sc-elev-east": { x: 464, y: 418 },
     "sd-stair-west": { x: 78, y: 643 },
