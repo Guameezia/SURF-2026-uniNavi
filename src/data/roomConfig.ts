@@ -349,7 +349,7 @@ const ROOMS_0F: RoomDef[] = [
   }),
   make0FCorridor("sa-corridor-east", "SA 东翼走廊", C0.saEast, {
     left: "sa-corridor",
-    down: "sa007-room",
+    down: "tongfa-canteen",
     up: "sa-elev-east",
   }),
   make0FCorridor("sb-corridor", "SB 走廊", C0.sb, {
@@ -383,26 +383,13 @@ const ROOMS_0F: RoomDef[] = [
     label: "Tongfa 食堂",
     floorId: "0F",
     zoneType: "room",
-    imageSrc: "/maps/zones/canteen_0F.png",
+    imageSrc: "/maps/rooms/canteen.png",
     ...ROOM_VIEW,
     overviewRect: Z0.rooms.tongfaCanteen,
     neighbors: {
       down: "sa-corridor",
-      right: "sa007-room",
+      right: "sa-corridor-east",
       left: "sa-corridor-west",
-    },
-  },
-  {
-    id: "sa007-room",
-    label: "SA007",
-    floorId: "0F",
-    zoneType: "room",
-    imageSrc: "/maps/rooms/sa007_0F.png",
-    ...ROOM_VIEW,
-    overviewRect: Z0.rooms.sa007,
-    neighbors: {
-      left: "tongfa-canteen",
-      up: "sa-corridor-east",
     },
   },
   makeStairRoom("sa-stair-west", "SA 楼梯（西）", S0.saWest.x, S0.saWest.y, {
@@ -442,7 +429,7 @@ const ROOMS_0F: RoomDef[] = [
     "sd-corridor",
     "SD 入口过道",
     Z0.walkable.sdCorridorNarrow,
-    { up: "entrance-corridor", left: "sd-corridor-west", down: "sd085-room" },
+    { up: "entrance-corridor", left: "sd-corridor-west", down: "sd-east-open" },
     "corridor-v"
   ),
   make0FCorridor(
@@ -453,20 +440,9 @@ const ROOMS_0F: RoomDef[] = [
     "corridor-v"
   ),
   make0FCorridor("sd-east-open", "SD 东前厅", Z0.walkable.sdEastOpen, {
-    left: "sd085-room",
+    left: "sd-corridor",
     right: "sd-stair-east",
   }),
-  {
-    id: "sd085-room",
-    label: "SD085",
-    floorId: "0F",
-    zoneType: "room",
-    ...ROOM_VIEW,
-    placeholder: "room",
-    overviewRect: Z0.rooms.sd085,
-    imageSrc: "/maps/rooms/sd085_0F.png",
-    neighbors: { up: "sd-corridor", right: "sd-east-open" },
-  },
   makeStairRoom("sd-stair-east", "SD 楼梯（东）", S0.sdEast.x, S0.sdEast.y, {
     left: "sd-east-open",
   }),
