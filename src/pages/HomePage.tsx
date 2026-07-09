@@ -237,17 +237,6 @@ export function HomePage() {
           )}
         </div>
 
-        <div className="app-header-aside">
-          {isNavigating && steps.length > 0 && (
-            <div className="directions-header-slot">
-              <DirectionsPanel
-                steps={steps}
-                expanded={directionsExpanded}
-                onToggle={() => setDirectionsExpanded((v) => !v)}
-              />
-            </div>
-          )}
-        </div>
       </header>
 
       <main className="app-main">
@@ -256,6 +245,16 @@ export function HomePage() {
         </aside>
 
         <MapViewport debugMode={debugMode && showDebugToggle} />
+
+        {isNavigating && steps.length > 0 && (
+          <div className="directions-float">
+            <DirectionsPanel
+              steps={steps}
+              expanded={directionsExpanded}
+              onToggle={() => setDirectionsExpanded((v) => !v)}
+            />
+          </div>
+        )}
       </main>
 
       {showDebugToggle && debugMode && (

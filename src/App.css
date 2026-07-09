@@ -1183,18 +1183,6 @@ html, body, #root {
   flex-shrink: 0;
 }
 
-.directions-header-slot {
-  width: min(400px, 100%);
-  flex-shrink: 0;
-}
-
-.app-header-aside {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-}
 
 /* Leaf note embedded panel (inside create modal) */
 .leaf-note-panel--embedded {
@@ -1368,15 +1356,6 @@ html, body, #root {
   flex-shrink: 0;
 }
 
-.directions-header-slot .directions-panel {
-  border: 1px solid #e0e0e0;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-}
-
-.directions-header-slot .directions-steps {
-  max-height: 140px;
-}
-
 .route-planner {
   display: flex;
   align-items: center;
@@ -1541,11 +1520,6 @@ html, body, #root {
   letter-spacing: 0.02em;
 }
 
-.route-suggestion-id {
-  font-size: 12px;
-  color: #aaa;
-  margin-left: 8px;
-}
 
 .route-summary {
   display: flex;
@@ -1603,13 +1577,24 @@ html, body, #root {
   color: #fff;
 }
 
-.directions-sidebar {
-  display: none;
+.directions-float {
+  position: absolute;
+  left: 16px;
+  bottom: 72px;
+  z-index: 50;
+  width: min(280px, calc(100% - 32px));
+  pointer-events: none;
+}
+
+.directions-float .directions-panel {
+  pointer-events: auto;
+  border: 1px solid #e0e0e0;
+  max-height: min(42vh, 320px);
 }
 
 .directions-panel {
   background: rgba(255, 255, 255, 0.97);
-  border-radius: 12px;
+  border-radius: 10px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   overflow: hidden;
   display: flex;
@@ -1622,7 +1607,7 @@ html, body, #root {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 12px 16px;
+  padding: 8px 12px;
   border: none;
   background: none;
   cursor: pointer;
@@ -1630,13 +1615,13 @@ html, body, #root {
 }
 
 .directions-panel-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #333;
 }
 
 .directions-panel-meta {
-  font-size: 12px;
+  font-size: 11px;
   color: #888;
   margin-left: auto;
 }
@@ -1650,26 +1635,26 @@ html, body, #root {
 .directions-steps {
   list-style: none;
   margin: 0;
-  padding: 0 16px 16px;
+  padding: 0 12px 12px;
   overflow-y: auto;
-  max-height: 360px;
+  max-height: min(32vh, 240px);
 }
 
 .directions-step {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 6px 0;
+  gap: 8px;
+  padding: 4px 0;
 }
 
 .directions-step-num {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #1976d2;
   color: #fff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -1677,8 +1662,8 @@ html, body, #root {
 }
 
 .directions-step-text {
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.4;
   color: #444;
   padding-top: 1px;
 }
@@ -1886,24 +1871,14 @@ html, body, #root {
     width: 100%;
   }
 
-  .directions-header-slot {
-    margin-left: 0;
-    width: 100%;
-  }
-
-  .directions-header-slot .directions-steps {
-    max-height: 200px;
-  }
-
   .route-summary {
     width: 100%;
   }
 
-  .directions-sidebar {
-    left: 8px;
-    right: 8px;
-    width: auto;
-    bottom: 8px;
+  .directions-float {
+    left: 12px;
+    bottom: 68px;
+    width: min(260px, calc(100% - 24px));
   }
 
   .legend {

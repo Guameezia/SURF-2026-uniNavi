@@ -77,7 +77,6 @@ export function RouteSearchField({
                       </span>
                     )}
                   </span>
-                  <span className="route-suggestion-id">{poi.id}</span>
                 </button>
               </li>
             );
