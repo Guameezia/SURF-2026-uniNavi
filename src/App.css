@@ -1709,11 +1709,11 @@ html, body, #root {
   position: relative;
 }
 
-/* 楼层选择器面板 */
+/* 楼层选择器面板 — 略偏下，避开右上角小地图 */
 .floor-selector-panel {
   position: absolute;
   right: 16px;
-  top: 50%;
+  top: 72%;
   transform: translateY(-50%);
   z-index: 100;
 }

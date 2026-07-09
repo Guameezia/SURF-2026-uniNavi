@@ -52,6 +52,8 @@ export const ZONES_0F = {
   },
   rooms: {
     tongfaCanteen: { x: 119, y: 80, w: 250, h: 110 } satisfies OverviewRect,
+    sa007: { x: 439, y: 100, w: 120, h: 90 } satisfies OverviewRect,
+    sd085: { x: 169, y: 610, w: 220, h: 60 } satisfies OverviewRect,
   },
   /** 楼梯图标中心（mxgraph.signs.travel.upstairs，15×15） */
   stairCenters: {

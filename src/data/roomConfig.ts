@@ -32,6 +32,92 @@ const BUILDING = BUILDING_ID;
 const ROOM_VIEW = { viewWidth: 640, viewHeight: 400 };
 const STAIR_VIEW = { viewWidth: 480, viewHeight: 320 };
 
+/** 通用室内贴图（楼梯 / 电梯 / 厕所 / 走廊 / 空场景 / 教室 / 办公室） */
+const ROOM_IMAGES = {
+  stairs: "/maps/rooms/stairs.png",
+  lift: "/maps/rooms/lift.png",
+  toilet: "/maps/rooms/toilet.png",
+  corridorH: "/maps/rooms/corridor_x.png",
+  corridorV: "/maps/rooms/corridor_y.png",
+  empty: "/maps/rooms/empty.png",
+  lecHall: "/maps/rooms/lec_hall.png",
+  largeLecture1: "/maps/rooms/large_lecture_hall_1.png",
+  largeLecture2: "/maps/rooms/large_lecture_hall_2.png",
+  computerLab: "/maps/rooms/computer_lab.png",
+  office: "/maps/rooms/office.png",
+} as const;
+
+/** 大阶梯教室贴图（按房间号） */
+const LARGE_LECTURE_BY_LABEL: Record<string, string> = {
+  SC176: ROOM_IMAGES.largeLecture1,
+  SB123: ROOM_IMAGES.largeLecture1,
+  SA169: ROOM_IMAGES.largeLecture2,
+  SC169: ROOM_IMAGES.largeLecture2,
+  SB102: ROOM_IMAGES.largeLecture2,
+  SD102: ROOM_IMAGES.largeLecture2,
+};
+
+/** 普通阶梯教室（lec hall） */
+const LEC_HALL_LABELS = new Set([
+  "SA136",
+  "SA164",
+  "SB120",
+  "SB152",
+  "SC140",
+  "SC162",
+  "SD114",
+  "SD120",
+  "SD154",
+  "SA236",
+  "SB220",
+  "SB230",
+  "SC262",
+  "SD214",
+  "SD220",
+  "SD254",
+]);
+
+/** 机房（computer lab） */
+const COMPUTER_LAB_LABELS = new Set([
+  "SC375",
+  "SD319",
+  "SD546",
+  "SD554",
+]);
+
+/**
+ * 小连排办公室：未命中教室/机房等显式映射时，
+ * 按 overviewRect 尺寸判断（面积小且两边都不大）。
+ */
+function isSmallOfficeRect(rect: OverviewRect): boolean {
+  return rect.w * rect.h <= 1200 && rect.w <= 60 && rect.h <= 55;
+}
+
+function roomImageByLabel(
+  label: string,
+  overviewRect?: OverviewRect
+): string | undefined {
+  if (LARGE_LECTURE_BY_LABEL[label]) return LARGE_LECTURE_BY_LABEL[label];
+  if (LEC_HALL_LABELS.has(label)) return ROOM_IMAGES.lecHall;
+  if (COMPUTER_LAB_LABELS.has(label)) return ROOM_IMAGES.computerLab;
+  if (overviewRect && isSmallOfficeRect(overviewRect)) return ROOM_IMAGES.office;
+  return undefined;
+}
+
+function corridorOrientationFromRect(
+  rect: OverviewRect
+): "corridor-h" | "corridor-v" {
+  return rect.w >= rect.h ? "corridor-h" : "corridor-v";
+}
+
+function corridorImageSrc(
+  orientation: "h" | "v" | "corridor-h" | "corridor-v"
+): string {
+  return orientation === "v" || orientation === "corridor-v"
+    ? ROOM_IMAGES.corridorV
+    : ROOM_IMAGES.corridorH;
+}
+
 export const FLOOR_0F_OVERVIEW = {
   width: 760,
   height: 720,
@@ -126,6 +212,7 @@ function makeVerticalLanding(
     floorId,
     zoneType: "corridor",
     placeholder: isStair ? "stair" : "shaft",
+    imageSrc: isStair ? ROOM_IMAGES.stairs : ROOM_IMAGES.lift,
     ...STAIR_VIEW,
     overviewRect: shaftIconRect(floorId, center.x, center.y, isStair),
     neighbors,
@@ -277,6 +364,7 @@ function makeStairRoom(
     floorId: "0F",
     zoneType: "corridor",
     placeholder: "stair",
+    imageSrc: ROOM_IMAGES.stairs,
     ...STAIR_VIEW,
     overviewRect: stairOverviewRect(svgX, svgY),
     neighbors,
@@ -297,6 +385,7 @@ function makeElevatorRoom(
     floorId: "0F",
     zoneType: "corridor",
     placeholder: "shaft",
+    imageSrc: ROOM_IMAGES.lift,
     ...STAIR_VIEW,
     overviewRect: elevOverviewRect(svgX, svgY),
     neighbors,
@@ -304,20 +393,23 @@ function makeElevatorRoom(
   };
 }
 
-/** 0F 走廊段 */
+/** 0F 走廊段（未指定方向时按 overviewRect 宽高比判断横/纵） */
 function make0FCorridor(
   id: string,
   label: string,
   overviewRect: OverviewRect,
   neighbors: RoomDef["neighbors"],
-  placeholder: "corridor-h" | "corridor-v" = "corridor-h"
+  orientation?: "corridor-h" | "corridor-v",
+  imageSrc?: string
 ): RoomDef {
+  const placeholder = orientation ?? corridorOrientationFromRect(overviewRect);
   return {
     id,
     label,
     floorId: "0F",
     zoneType: "corridor",
     placeholder,
+    imageSrc: imageSrc ?? corridorImageSrc(placeholder),
     ...ROOM_VIEW,
     overviewRect,
     neighbors,
@@ -335,7 +427,8 @@ const ROOMS_0F: RoomDef[] = [
     "地下停车场入口通道",
     Z0.walkable.entranceCorridor,
     { up: "sb-corridor", down: "sd-corridor", right: "sc-atrium" },
-    "corridor-v"
+    "corridor-v",
+    ROOM_IMAGES.empty
   ),
   make0FCorridor("sa-corridor", "SA 走廊", C0.sa, {
     left: "sa-stair-west",
@@ -349,7 +442,7 @@ const ROOMS_0F: RoomDef[] = [
   }),
   make0FCorridor("sa-corridor-east", "SA 东翼走廊", C0.saEast, {
     left: "sa-corridor",
-    down: "tongfa-canteen",
+    down: "sa007-room",
     up: "sa-elev-east",
   }),
   make0FCorridor("sb-corridor", "SB 走廊", C0.sb, {
@@ -376,7 +469,9 @@ const ROOMS_0F: RoomDef[] = [
       up: "sb-corridor",
       right: "sb-corridor-east",
       down: "sc-stair-west",
-    }
+    },
+    undefined,
+    ROOM_IMAGES.empty
   ),
   {
     id: "tongfa-canteen",
@@ -388,8 +483,21 @@ const ROOMS_0F: RoomDef[] = [
     overviewRect: Z0.rooms.tongfaCanteen,
     neighbors: {
       down: "sa-corridor",
-      right: "sa-corridor-east",
+      right: "sa007-room",
       left: "sa-corridor-west",
+    },
+  },
+  {
+    id: "sa007-room",
+    label: "SA007",
+    floorId: "0F",
+    zoneType: "room",
+    imageSrc: "/maps/rooms/lab.png",
+    ...ROOM_VIEW,
+    overviewRect: Z0.rooms.sa007,
+    neighbors: {
+      left: "tongfa-canteen",
+      up: "sa-corridor-east",
     },
   },
   makeStairRoom("sa-stair-west", "SA 楼梯（西）", S0.saWest.x, S0.saWest.y, {
@@ -429,7 +537,7 @@ const ROOMS_0F: RoomDef[] = [
     "sd-corridor",
     "SD 入口过道",
     Z0.walkable.sdCorridorNarrow,
-    { up: "entrance-corridor", left: "sd-corridor-west", down: "sd-east-open" },
+    { up: "entrance-corridor", left: "sd-corridor-west", down: "sd085-room" },
     "corridor-v"
   ),
   make0FCorridor(
@@ -439,10 +547,27 @@ const ROOMS_0F: RoomDef[] = [
     { right: "sd-corridor", up: "sc-stair-west", down: "sd-stair-west" },
     "corridor-v"
   ),
-  make0FCorridor("sd-east-open", "SD 东前厅", Z0.walkable.sdEastOpen, {
-    left: "sd-corridor",
-    right: "sd-stair-east",
-  }),
+  make0FCorridor(
+    "sd-east-open",
+    "SD 东前厅",
+    Z0.walkable.sdEastOpen,
+    {
+      left: "sd085-room",
+      right: "sd-stair-east",
+    },
+    undefined,
+    ROOM_IMAGES.empty
+  ),
+  {
+    id: "sd085-room",
+    label: "SD085",
+    floorId: "0F",
+    zoneType: "room",
+    imageSrc: "/maps/rooms/lab.png",
+    ...ROOM_VIEW,
+    overviewRect: Z0.rooms.sd085,
+    neighbors: { up: "sd-corridor", right: "sd-east-open" },
+  },
   makeStairRoom("sd-stair-east", "SD 楼梯（东）", S0.sdEast.x, S0.sdEast.y, {
     left: "sd-east-open",
   }),
@@ -460,20 +585,27 @@ const ROOMS_0F: RoomDef[] = [
   }),
 ];
 
-/** 1F 走廊 / 通道（灰竖条为翼楼走廊，块间短灰条为通道） */
+/** 1F 走廊 / 通道（未指定方向时按 overviewRect 宽高比判断横/纵） */
 function make1FCorridor(
   id: string,
   label: string,
   overviewRect: OverviewRect,
   neighbors: RoomDef["neighbors"],
-  orientation: "h" | "v" = "h"
+  orientation?: "h" | "v"
 ): RoomDef {
+  const placeholder =
+    orientation === "v"
+      ? "corridor-v"
+      : orientation === "h"
+        ? "corridor-h"
+        : corridorOrientationFromRect(overviewRect);
   return {
     id,
     label,
     floorId: "1F",
     zoneType: "corridor",
-    placeholder: orientation === "v" ? "corridor-v" : "corridor-h",
+    placeholder,
+    imageSrc: corridorImageSrc(placeholder),
     ...ROOM_VIEW,
     overviewRect,
     neighbors,
@@ -493,6 +625,7 @@ function make1FRoom(
     floorId: "1F",
     zoneType: "room",
     placeholder: "room",
+    imageSrc: roomImageByLabel(label, overviewRect),
     ...ROOM_VIEW,
     overviewRect,
     neighbors,
@@ -512,6 +645,7 @@ function make1FToilet(
     floorId: "1F",
     zoneType: "room",
     placeholder: "room",
+    imageSrc: ROOM_IMAGES.toilet,
     ...ROOM_VIEW,
     overviewRect,
     neighbors,
@@ -671,12 +805,14 @@ function makeUpperFloorBlockCorridor(
   neighbors: RoomDef["neighbors"]
 ): RoomDef {
   const prefix = `${floorId.toLowerCase()}-`;
+  const placeholder = corridorOrientationFromRect(overviewRect);
   return {
     id: `${prefix}${block}-corridor`,
     label: `${block.toUpperCase()} 走廊`,
     floorId,
     zoneType: "corridor",
-    placeholder: "corridor-h",
+    placeholder,
+    imageSrc: corridorImageSrc(placeholder),
     ...ROOM_VIEW,
     overviewRect,
     neighbors,
@@ -725,12 +861,14 @@ function makeUpperFloorBlockWingCorridor(
   neighbors: RoomDef["neighbors"]
 ): RoomDef {
   const sideLabel = side === "west" ? "西翼走廊" : "东翼走廊";
+  const placeholder = corridorOrientationFromRect(overviewRect);
   return {
     id: `${floorId.toLowerCase()}-${block}-corridor-${side}`,
     label: `${block.toUpperCase()} ${sideLabel}`,
     floorId,
     zoneType: "corridor",
-    placeholder: "corridor-v",
+    placeholder,
+    imageSrc: corridorImageSrc(placeholder),
     ...ROOM_VIEW,
     overviewRect,
     neighbors,
@@ -796,6 +934,7 @@ function makeUpperFloorToilet(
     floorId,
     zoneType: "room",
     placeholder: "room",
+    imageSrc: ROOM_IMAGES.toilet,
     ...ROOM_VIEW,
     overviewRect,
     neighbors,
@@ -869,6 +1008,7 @@ function makeUpperFloorRoom(
     floorId,
     zoneType: "room",
     placeholder: "room",
+    imageSrc: roomImageByLabel(label, overviewRect),
     ...ROOM_VIEW,
     overviewRect,
     neighbors,
