@@ -206,13 +206,23 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (noteDialog || viewpointDialog) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
 
-      if (verticalPad && e.key === "PageUp" && verticalPad.canUp) {
+      if (verticalPad && e.code === "KeyW" && verticalPad.canUp) {
         e.preventDefault();
         verticalPad.onUp();
         return;
       }
-      if (verticalPad && e.key === "PageDown" && verticalPad.canDown) {
+      if (verticalPad && e.code === "KeyS" && verticalPad.canDown) {
         e.preventDefault();
         verticalPad.onDown();
         return;

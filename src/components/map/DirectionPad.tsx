@@ -67,18 +67,28 @@ export function DirectionPad({
             className="dir-pad-vertical-btn"
             disabled={!vertical.canUp}
             onClick={vertical.onUp}
-            title={vertical.canUp ? `上楼 ${vertical.upFloor ?? ""}` : "无法上楼"}
+            title={
+              vertical.canUp
+                ? `上楼 ${vertical.upFloor ?? ""}（W）`
+                : "无法上楼"
+            }
+            aria-keyshortcuts="w"
           >
-            上楼
+            W 上楼
           </button>
           <button
             type="button"
             className="dir-pad-vertical-btn dir-pad-vertical-btn--down"
             disabled={!vertical.canDown}
             onClick={vertical.onDown}
-            title={vertical.canDown ? `下楼 ${vertical.downFloor ?? ""}` : "无法下楼"}
+            title={
+              vertical.canDown
+                ? `下楼 ${vertical.downFloor ?? ""}（S）`
+                : "无法下楼"
+            }
+            aria-keyshortcuts="s"
           >
-            下楼
+            S 下楼
           </button>
         </div>
       ) : (
