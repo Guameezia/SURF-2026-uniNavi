@@ -27,6 +27,7 @@ import {
   stairSiblingKey,
   type VerticalShaft,
 } from "./floorPortals";
+import { resolveNeighborDirections } from "./roomDirections";
 
 const BUILDING = BUILDING_ID;
 const ROOM_VIEW = { viewWidth: 640, viewHeight: 400 };
@@ -1059,13 +1060,17 @@ export const VIEWPOINTS_0F: ViewpointDef[] = [
   },
 ];
 
+/**
+ * 各层房间：连通关系保持不变，方向键统一按 overviewRect 几何中心重排，
+ * 保证方向键与 SVG 底图上的东西南北一致（见 roomDirections.ts）。
+ */
 const ROOMS_BY_FLOOR: Partial<Record<FloorId, RoomDef[]>> = {
-  "0F": ROOMS_0F,
-  "1F": ROOMS_1F,
-  "2F": ROOMS_2F,
-  "3F": ROOMS_3F,
-  "4F": ROOMS_4F,
-  "5F": ROOMS_5F,
+  "0F": resolveNeighborDirections(ROOMS_0F),
+  "1F": resolveNeighborDirections(ROOMS_1F),
+  "2F": resolveNeighborDirections(ROOMS_2F),
+  "3F": resolveNeighborDirections(ROOMS_3F),
+  "4F": resolveNeighborDirections(ROOMS_4F),
+  "5F": resolveNeighborDirections(ROOMS_5F),
 };
 
 const DEFAULT_BY_FLOOR: Partial<Record<FloorId, string>> = {
