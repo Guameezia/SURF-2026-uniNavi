@@ -9,37 +9,30 @@ import {
 } from "./components/layout/BottomTabBar";
 import { useLeafNoteStore } from "./store/leafNoteStore";
 import { useTopicStore } from "./store/topicStore";
-import { useAppNavStore } from "./store/appNavStore";
 import { HomePage } from "./pages/HomePage";
-import { TopicsPage } from "./pages/TopicsPage";
+import { GuidePage } from "./pages/GuidePage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { useGuideStore } from "./store/guideStore";
 import "./App.css";
 
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>("home");
   const refreshNotes = useLeafNoteStore((s) => s.refreshNotes);
   const refreshTopics = useTopicStore((s) => s.refreshTopics);
-  const participateTopic = useAppNavStore((s) => s.participateTopic);
+  const refreshGuides = useGuideStore((s) => s.refresh);
 
   useEffect(() => {
     refreshNotes();
     refreshTopics();
-  }, [activeTab, refreshNotes, refreshTopics]);
-
-  const handleParticipateTopic = (
-    topicId: string,
-    suggestedTags: Parameters<typeof participateTopic>[1]
-  ) => {
-    participateTopic(topicId, suggestedTags);
-    setActiveTab("home");
-  };
+    refreshGuides();
+  }, [activeTab, refreshNotes, refreshTopics, refreshGuides]);
 
   return (
     <div className="app">
       <div className="app-content">
         {activeTab === "home" && <HomePage />}
-        {activeTab === "topics" && (
-          <TopicsPage onParticipateTopic={handleParticipateTopic} />
+        {activeTab === "guides" && (
+          <GuidePage onShowOnMap={() => setActiveTab("home")} />
         )}
         {activeTab === "profile" && <ProfilePage />}
       </div>

@@ -4,6 +4,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useMapStore } from "../store/mapStore";
+import { useGuideStore } from "../store/guideStore";
 import { FloorSelector } from "../components/map/FloorSelector";
 import { RouteSearchField, getPOISearchDisplay } from "../components/navigation/RouteSearchField";
 import { DirectionsPanel } from "../components/navigation/DirectionsPanel";
@@ -56,6 +57,7 @@ export function HomePage() {
   const steps = activeRoute?.steps ?? [];
 
   useEffect(() => {
+    if (graph) return;
     try {
       const graphData = createGraph(sNodes, sEdges);
       const poisData = getPOINodes(graphData);
@@ -64,7 +66,15 @@ export function HomePage() {
     } catch (err) {
       console.error("Failed to initialize map:", err);
     }
-  }, [initializeMap]);
+  }, [initializeMap, graph]);
+
+  useEffect(() => {
+    if (!graph) return;
+    const { routes, recomputeRouteGeometries } = useGuideStore.getState();
+    if (routes.some((r) => !r.geometry)) {
+      recomputeRouteGeometries(graph);
+    }
+  }, [graph]);
 
   const handleStartChange = (query: string) => {
     setStartQuery(query);

@@ -10,9 +10,20 @@ import {
 } from "../utils/topicRules";
 import { PullToRefresh } from "../components/layout/PullToRefresh";
 import { useLeafNoteRefresh } from "../hooks/useLeafNoteRefresh";
+import {
+  LeafNoteSheet,
+  type LeafNoteSheetMode,
+} from "../components/map/LeafNoteSheet";
 
 export function ProfilePage() {
-  const { notes, likedNoteIds, lastRefreshedAt, updateNote } = useLeafNoteStore();
+  const {
+    notes,
+    likedNoteIds,
+    lastRefreshedAt,
+    updateNote,
+    deleteNote,
+    setNoteStatus,
+  } = useLeafNoteStore();
   const {
     notifications,
     topics,
@@ -25,6 +36,9 @@ export function ProfilePage() {
 
   const [promoteClusterKey, setPromoteClusterKey] = useState<string | null>(null);
   const [promoteTitle, setPromoteTitle] = useState("");
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [noteSheetMode, setNoteSheetMode] =
+    useState<LeafNoteSheetMode>("view");
 
   const stats = useMemo(() => {
     const active = notes.filter((n) => n.status === "active");
@@ -43,6 +57,8 @@ export function ProfilePage() {
     () => [...notes].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10),
     [notes]
   );
+  const selectedNote =
+    notes.find((note) => note.id === selectedNoteId) ?? null;
 
   const unreadNotifications = notifications.filter((n) => !n.read);
   const clusters = useMemo(() => findCandidateClusters(notes), [notes]);
@@ -208,21 +224,32 @@ export function ProfilePage() {
             ) : (
               <ul className="profile-note-list">
                 {recentNotes.map((note) => (
-                  <li key={note.id} className="profile-note-item">
-                    <span className="profile-note-icon">{getIconEmoji(note.iconId)}</span>
-                    <div className="profile-note-content">
-                      <p>{note.text}</p>
-                      <div className="profile-note-meta">
-                        <span>{note.roomId}</span>
-                        <span>{getStatusLabel(note.status)}</span>
-                        {note.tags.slice(0, 2).map((id) => (
-                          <span key={id} style={{ color: getTagDef(id).color }}>
-                            #{getTagDef(id).label}
-                          </span>
-                        ))}
-                        <span>{formatNoteTime(note.updatedAt)}</span>
+                  <li key={note.id}>
+                    <button
+                      type="button"
+                      className="profile-note-item"
+                      onClick={() => {
+                        setSelectedNoteId(note.id);
+                        setNoteSheetMode("view");
+                      }}
+                    >
+                      <span className="profile-note-icon">
+                        {getIconEmoji(note.iconId)}
+                      </span>
+                      <div className="profile-note-content">
+                        <p>{note.text}</p>
+                        <div className="profile-note-meta">
+                          <span>{note.roomId}</span>
+                          <span>{getStatusLabel(note.status)}</span>
+                          {note.tags.slice(0, 2).map((id) => (
+                            <span key={id} style={{ color: getTagDef(id).color }}>
+                              #{getTagDef(id).label}
+                            </span>
+                          ))}
+                          <span>{formatNoteTime(note.updatedAt)}</span>
+                        </div>
                       </div>
-                    </div>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -230,6 +257,44 @@ export function ProfilePage() {
           </section>
         </div>
       </PullToRefresh>
+
+      <LeafNoteSheet
+        open={selectedNote !== null}
+        mode={noteSheetMode}
+        roomLabel={selectedNote?.roomId}
+        note={selectedNote}
+        initialText={selectedNote?.text}
+        initialTags={selectedNote?.tags}
+        initialIconId={selectedNote?.iconId}
+        initialIconLocked={selectedNote?.iconLocked}
+        onClose={() => setSelectedNoteId(null)}
+        onSave={({ text, tags, iconId, iconLocked }) => {
+          if (!selectedNote) return;
+          updateNote(selectedNote.id, { text, tags, iconId, iconLocked });
+          setSelectedNoteId(null);
+        }}
+        onDelete={
+          selectedNote
+            ? () => {
+                if (!window.confirm("确定要删除这条便签吗？此操作无法撤销。")) {
+                  return;
+                }
+                deleteNote(selectedNote.id);
+                setSelectedNoteId(null);
+              }
+            : undefined
+        }
+        onEdit={
+          selectedNote && noteSheetMode === "view"
+            ? () => setNoteSheetMode("edit")
+            : undefined
+        }
+        onSetStatus={
+          selectedNote
+            ? (status) => setNoteStatus(selectedNote.id, status)
+            : undefined
+        }
+      />
     </div>
   );
 }
