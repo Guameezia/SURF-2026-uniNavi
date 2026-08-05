@@ -3,17 +3,27 @@
  */
 
 import { useMemo, useState } from "react";
-import { useGuideStore } from "../store/guideStore";
+import {
+  estimateGuideRouteMinutes,
+  useGuideStore,
+} from "../store/guideStore";
 import { useLeafNoteStore } from "../store/leafNoteStore";
 import { useAppNavStore } from "../store/appNavStore";
 import { useMapStore } from "../store/mapStore";
 import { useRoomStore } from "../store/roomStore";
 import {
   GUIDE_THEMES,
+  GUIDE_ROUTE_TAGS,
   getGuideThemeDef,
+  getGuideRouteTagDef,
+  type GuideRouteTag,
   type GuideTheme,
 } from "../types/guide";
 import { getRoomById } from "../data/roomConfig";
+import { buildGuideRouteGeometry } from "../algorithms/guideRouteGeometry";
+import { GuideStopEditor } from "../components/guide/GuideStopEditor";
+import { GuideRoutePreview } from "../components/guide/GuideRoutePreview";
+import { useGuideProgressStore } from "../store/guideProgressStore";
 
 interface GuidePageProps {
   onShowOnMap: () => void;
@@ -28,6 +38,8 @@ export function GuidePage({ onShowOnMap }: GuidePageProps) {
     deleteCollection,
     removeNoteFromCollection,
     createRoute,
+    updateRouteDetails,
+    updateRouteStops,
     deleteRoute,
     setActiveOverlay,
     buildShareText,
@@ -37,16 +49,24 @@ export function GuidePage({ onShowOnMap }: GuidePageProps) {
   const setRoom = useRoomStore((s) => s.setRoom);
   const graph = useMapStore((s) => s.graph);
   const recomputeRouteGeometries = useGuideStore((s) => s.recomputeRouteGeometries);
+  const startGuideRoute = useGuideProgressStore((s) => s.startRoute);
+  const syncGuideRoute = useGuideProgressStore((s) => s.syncRoute);
+  const endGuideRoute = useGuideProgressStore((s) => s.endRoute);
 
   const [tab, setTab] = useState<"collections" | "routes">("collections");
   const [name, setName] = useState("");
   const [theme, setTheme] = useState<GuideTheme>("tour");
   const [routeName, setRouteName] = useState("");
+  const [routeDescription, setRouteDescription] = useState("");
+  const [routeTags, setRouteTags] = useState<GuideRouteTag[]>(["tour"]);
+  const [routeMinutes, setRouteMinutes] = useState<number | null>(null);
   const [sourceCollectionId, setSourceCollectionId] = useState("");
   const [pickedNoteIds, setPickedNoteIds] = useState<string[]>([]);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [expandedRouteId, setExpandedRouteId] = useState<string | null>(null);
+  const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
 
   const activeNotes = useMemo(
     () => notes.filter((n) => n.status === "active"),
@@ -78,6 +98,52 @@ export function GuidePage({ onShowOnMap }: GuidePageProps) {
       });
   }, [pickedNoteIds, notes]);
 
+  const autoEstimatedMinutes = useMemo(
+    () =>
+      estimateGuideRouteMinutes(
+        pickedStopsPreview.map((stop) => ({
+          noteId: stop.noteId,
+          floorId: stop.floorId,
+          roomId: "",
+          roomLabel: stop.label,
+          noteText: stop.text,
+        }))
+      ),
+    [pickedStopsPreview]
+  );
+
+  const draftGeometry = useMemo(() => {
+    if (!graph || pickedNoteIds.length < 2) return null;
+    const stops = pickedNoteIds.flatMap((noteId) => {
+      const note = notes.find((candidate) => candidate.id === noteId);
+      if (!note) return [];
+      const room = getRoomById(note.floorId, note.roomId);
+      return [{
+        noteId: note.id,
+        floorId: note.floorId,
+        roomId: note.roomId,
+        roomLabel: room?.label ?? note.roomId,
+        noteText: note.text.slice(0, 80),
+      }];
+    });
+    return buildGuideRouteGeometry(
+      graph,
+      stops,
+      routeTags.includes("accessible")
+    );
+  }, [graph, pickedNoteIds, notes, routeTags]);
+
+  const toggleRouteTag = (tag: GuideRouteTag) => {
+    setRouteTags((current) => {
+      if (current.includes(tag)) {
+        return current.length === 1
+          ? current
+          : current.filter((item) => item !== tag);
+      }
+      return [...current, tag];
+    });
+  };
+
   const handleCreateCollection = () => {
     createCollection(name, theme);
     setName("");
@@ -94,18 +160,28 @@ export function GuidePage({ onShowOnMap }: GuidePageProps) {
       setError("一条路线最多 8 个点，请减少选点。");
       return;
     }
+    if (draftGeometry && !draftGeometry.complete) {
+      setError("部分相邻站点无法连通，请调整站点顺序后再生成。");
+      return;
+    }
     const route = createRoute({
       name: routeName.trim() || `主题路线 · ${pickedNoteIds.length} 站`,
       noteIds: pickedNoteIds,
       notes,
       collectionId: sourceCollectionId || null,
       graph: graph ?? undefined,
+      description: routeDescription,
+      tags: routeTags,
+      estimatedMinutes: routeMinutes ?? autoEstimatedMinutes,
     });
     if (!route) {
       setError("生成失败：需要 3–8 个仍然存在的地点便签。");
       return;
     }
     setRouteName("");
+    setRouteDescription("");
+    setRouteTags(["tour"]);
+    setRouteMinutes(null);
     setPickedNoteIds([]);
     setError(null);
     setSuccess(`已生成路线「${route.name}」`);
@@ -128,6 +204,15 @@ export function GuidePage({ onShowOnMap }: GuidePageProps) {
     setSourceCollectionId(collectionId);
     setPickedNoteIds(ids.slice(0, 8));
     setRouteName(`${collection.name}路线`);
+    setRouteDescription(`按顺序探索「${collection.name}」收藏夹中的校园地点。`);
+    setRouteTags([
+      collection.theme === "food"
+        ? "food"
+        : collection.theme === "study"
+          ? "study"
+          : "tour",
+    ]);
+    setRouteMinutes(null);
     setError(null);
     setTab("routes");
     setSuccess("已带入收藏夹地点，确认后点击「生成路线」");
@@ -192,6 +277,7 @@ export function GuidePage({ onShowOnMap }: GuidePageProps) {
       onShowOnMap();
       return;
     }
+    startGuideRoute(route);
 
     // 生成/打开攻略路线后直接进入第 1 站，不经过楼层鸟瞰。
     const entry = route.stops[0];
@@ -476,17 +562,24 @@ export function GuidePage({ onShowOnMap }: GuidePageProps) {
               </p>
 
               {pickedStopsPreview.length > 0 ? (
-                <ol className="guide-route-preview">
-                  {pickedStopsPreview.map((stop, index) => (
-                    <li key={stop.noteId}>
-                      <span className="guide-route-index">{index + 1}</span>
-                      <span>
-                        [{stop.floorId}] {stop.label}
-                        <em>{stop.text}</em>
-                      </span>
-                    </li>
-                  ))}
-                </ol>
+                <>
+                  <GuideStopEditor
+                    noteIds={pickedNoteIds}
+                    notes={activeNotes}
+                    minStops={0}
+                    onChange={(nextIds) => {
+                      setPickedNoteIds(nextIds);
+                      setRouteMinutes(null);
+                      setError(null);
+                    }}
+                  />
+                  {graph && draftGeometry && (
+                    <GuideRoutePreview
+                      graph={graph}
+                      geometry={draftGeometry}
+                    />
+                  )}
+                </>
               ) : (
                 <p className="guide-empty">还没有选点，先在上方选出至少 3 站。</p>
               )}
@@ -499,6 +592,60 @@ export function GuidePage({ onShowOnMap }: GuidePageProps) {
                   placeholder="例如：新生 30 分钟导览"
                   maxLength={40}
                 />
+              </label>
+
+              <label className="guide-field">
+                <span>路线简介</span>
+                <textarea
+                  value={routeDescription}
+                  onChange={(e) => setRouteDescription(e.target.value)}
+                  placeholder="介绍这条路线适合谁、有什么亮点"
+                  maxLength={160}
+                  rows={3}
+                />
+              </label>
+
+              <fieldset className="guide-route-tag-field">
+                <legend>路线标签（可多选）</legend>
+                <div className="guide-route-tag-options">
+                  {GUIDE_ROUTE_TAGS.map((tag) => {
+                    const selected = routeTags.includes(tag.id);
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        className={`guide-route-tag-option${selected ? " guide-route-tag-option--on" : ""}`}
+                        onClick={() => toggleRouteTag(tag.id)}
+                        aria-pressed={selected}
+                      >
+                        {tag.emoji} {tag.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {routeTags.includes("accessible") && (
+                  <p className="guide-route-accessible-hint">
+                    将使用电梯优先的舒适路线连接各站。
+                  </p>
+                )}
+              </fieldset>
+
+              <label className="guide-field guide-duration-field">
+                <span>预计时长（分钟）</span>
+                <input
+                  type="number"
+                  min={5}
+                  max={240}
+                  value={routeMinutes ?? autoEstimatedMinutes}
+                  onChange={(e) =>
+                    setRouteMinutes(
+                      Math.max(5, Math.min(240, Number(e.target.value) || 5))
+                    )
+                  }
+                />
+                <em>
+                  系统根据 {pickedStopsPreview.length} 站和跨越楼层自动估算，可修改
+                </em>
               </label>
 
               <div className="guide-create-actions">
@@ -527,22 +674,72 @@ export function GuidePage({ onShowOnMap }: GuidePageProps) {
                 <p className="guide-empty">还没有路线。</p>
               ) : (
                 <ul className="guide-stack">
-                  {routes.map((route) => (
-                    <li key={route.id} className="guide-stack-item">
-                      <div className="guide-stack-head">
-                        <div>
-                          <strong>{route.name}</strong>
-                          <span className="guide-meta">
-                            {route.stops.length} 站
+                  {routes.map((route) => {
+                    const expanded = expandedRouteId === route.id;
+                    const editing = editingRouteId === route.id;
+                    const floors = [...new Set(route.stops.map((stop) => stop.floorId))];
+                    const primaryTag = getGuideRouteTagDef(route.tags[0] ?? "tour");
+                    return (
+                      <li key={route.id} className="guide-route-card">
+                        <button
+                          type="button"
+                          className="guide-route-summary"
+                          onClick={() =>
+                            setExpandedRouteId(expanded ? null : route.id)
+                          }
+                          aria-expanded={expanded}
+                        >
+                          <span
+                            className="guide-route-cover"
+                            style={{ background: primaryTag.cover }}
+                            aria-hidden
+                          >
+                            <span>{primaryTag.emoji}</span>
+                            <small>校园主题路线</small>
                           </span>
-                        </div>
-                        <div className="guide-stack-actions">
+                          <span className="guide-route-summary-body">
+                            <strong>{route.name}</strong>
+                            <span className="guide-route-description">
+                              {route.description}
+                            </span>
+                            <span className="guide-route-metrics">
+                              <span>⏱ {route.estimatedMinutes} 分钟</span>
+                              <span>📍 {route.stops.length} 站</span>
+                              <span>🏢 {floors.join("、")}</span>
+                            </span>
+                            <span className="guide-route-tags">
+                              {route.tags.map((tagId) => {
+                                const tag = getGuideRouteTagDef(tagId);
+                                return (
+                                  <span key={tagId} style={{ color: tag.color }}>
+                                    {tag.emoji} {tag.label}
+                                  </span>
+                                );
+                              })}
+                            </span>
+                          </span>
+                          <span className="guide-route-expand">
+                            {expanded ? "收起" : "查看详情"} {expanded ? "⌃" : "⌄"}
+                          </span>
+                        </button>
+
+                        <div className="guide-route-card-actions">
                           <button
                             type="button"
                             className="btn-primary btn-sm"
                             onClick={() => showRouteOnMap(route.id)}
                           >
-                            地图连线
+                            开始路线
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            onClick={() => {
+                              setExpandedRouteId(route.id);
+                              setEditingRouteId(editing ? null : route.id);
+                            }}
+                          >
+                            {editing ? "完成编辑" : "编辑详情"}
                           </button>
                           <button
                             type="button"
@@ -554,41 +751,175 @@ export function GuidePage({ onShowOnMap }: GuidePageProps) {
                           <button
                             type="button"
                             className="btn-danger btn-sm"
-                            onClick={() => deleteRoute(route.id)}
+                            onClick={() => {
+                              if (
+                                useGuideProgressStore.getState().active
+                                  ?.routeId === route.id
+                              ) {
+                                endGuideRoute();
+                              }
+                              deleteRoute(route.id);
+                            }}
                           >
                             删除
                           </button>
                         </div>
-                      </div>
-                      <ol className="guide-route-stops">
-                        {route.stops.map((stop, index) => (
-                          <li key={`${route.id}-${stop.noteId}-${index}`}>
-                            <button
-                              type="button"
-                              className="guide-route-stop"
-                              onClick={() => {
-                                setActiveOverlay({ kind: "route", id: route.id });
-                                setCurrentFloor(stop.floorId);
-                                setRoom(stop.roomId);
-                                focusOnMap({
-                                  floorId: stop.floorId,
-                                  roomId: stop.roomId,
-                                  noteId: stop.noteId,
-                                });
-                                onShowOnMap();
-                              }}
-                            >
-                              <span className="guide-route-index">{index + 1}</span>
-                              <span>
-                                [{stop.floorId}] {stop.roomLabel}
-                                <em>{stop.noteText}</em>
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ol>
-                    </li>
-                  ))}
+
+                        {expanded && (
+                          <div className="guide-route-detail">
+                            {editing && (
+                              <div className="guide-route-edit">
+                                <label className="guide-field">
+                                  <span>名称</span>
+                                  <input
+                                    defaultValue={route.name}
+                                    maxLength={40}
+                                    onBlur={(e) =>
+                                      updateRouteDetails(
+                                        route.id,
+                                        { name: e.target.value },
+                                        graph
+                                      )
+                                    }
+                                  />
+                                </label>
+                                <label className="guide-field">
+                                  <span>简介</span>
+                                  <textarea
+                                    defaultValue={route.description}
+                                    maxLength={160}
+                                    rows={3}
+                                    onBlur={(e) =>
+                                      updateRouteDetails(
+                                        route.id,
+                                        { description: e.target.value },
+                                        graph
+                                      )
+                                    }
+                                  />
+                                </label>
+                                <label className="guide-field">
+                                  <span>预计时长（分钟）</span>
+                                  <input
+                                    type="number"
+                                    min={5}
+                                    max={240}
+                                    defaultValue={route.estimatedMinutes}
+                                    onBlur={(e) =>
+                                      updateRouteDetails(
+                                        route.id,
+                                        {
+                                          estimatedMinutes: Math.max(
+                                            5,
+                                            Math.min(
+                                              240,
+                                              Number(e.target.value) ||
+                                                route.estimatedMinutes
+                                            )
+                                          ),
+                                        },
+                                        graph
+                                      )
+                                    }
+                                  />
+                                </label>
+                                <div className="guide-route-tag-options">
+                                  {GUIDE_ROUTE_TAGS.map((tag) => {
+                                    const selected = route.tags.includes(tag.id);
+                                    return (
+                                      <button
+                                        key={tag.id}
+                                        type="button"
+                                        className={`guide-route-tag-option${selected ? " guide-route-tag-option--on" : ""}`}
+                                        aria-pressed={selected}
+                                        onClick={() => {
+                                          const nextTags = selected
+                                            ? route.tags.filter(
+                                                (item) => item !== tag.id
+                                              )
+                                            : [...route.tags, tag.id];
+                                          if (nextTags.length === 0) return;
+                                          updateRouteDetails(
+                                            route.id,
+                                            { tags: nextTags },
+                                            graph
+                                          );
+                                        }}
+                                      >
+                                        {tag.emoji} {tag.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <div className="guide-route-stop-edit-block">
+                                  <strong>调整站点顺序</strong>
+                                  <GuideStopEditor
+                                    noteIds={route.stops.map(
+                                      (stop) => stop.noteId
+                                    )}
+                                    notes={activeNotes}
+                                    onChange={(nextIds) => {
+                                      const updated = updateRouteStops(
+                                        route.id,
+                                        nextIds,
+                                        notes,
+                                        graph
+                                      );
+                                      if (updated) syncGuideRoute(updated);
+                                    }}
+                                  />
+                                </div>
+                                {graph && route.geometry && (
+                                  <GuideRoutePreview
+                                    graph={graph}
+                                    geometry={route.geometry}
+                                  />
+                                )}
+                              </div>
+                            )}
+
+                            <h3>路线站点</h3>
+                            <ol className="guide-route-stops">
+                              {route.stops.map((stop, index) => (
+                                <li key={`${route.id}-${stop.noteId}-${index}`}>
+                                  <button
+                                    type="button"
+                                    className="guide-route-stop"
+                                    onClick={() => {
+                                      setActiveOverlay({
+                                        kind: "route",
+                                        id: route.id,
+                                      });
+                                      setCurrentFloor(stop.floorId);
+                                      setRoom(stop.roomId);
+                                      focusOnMap({
+                                        floorId: stop.floorId,
+                                        roomId: stop.roomId,
+                                        noteId: stop.noteId,
+                                      });
+                                      onShowOnMap();
+                                    }}
+                                  >
+                                    <span className="guide-route-index">
+                                      {index + 1}
+                                    </span>
+                                    <span>
+                                      第 {index + 1} 站 · [{stop.floorId}]{" "}
+                                      {stop.roomLabel}
+                                      <em>{stop.noteText}</em>
+                                    </span>
+                                  </button>
+                                  {index < route.stops.length - 1 && (
+                                    <span className="guide-route-arrow">↓</span>
+                                  )}
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>

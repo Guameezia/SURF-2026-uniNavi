@@ -3,6 +3,7 @@ import { createGraph } from "./graph";
 import { buildGuideRouteGeometry, resolveRoomToNodeId } from "./guideRouteGeometry";
 import { sEdges, sNodes } from "../data";
 import type { GuideRouteStop } from "../types/guide";
+import { getGuideLegInstruction } from "../utils/guideProgress";
 
 function stop(
   noteId: string,
@@ -32,5 +33,42 @@ describe("guide route geometry", () => {
       geometry.legs[0].segments.find((segment) => segment.floorId === "0F")
         ?.points.length
     ).toBeGreaterThan(1);
+  });
+
+  it("uses the comfort route for an accessible guide", () => {
+    const graph = createGraph(sNodes, sEdges);
+    const geometry = buildGuideRouteGeometry(
+      graph,
+      [
+        stop("one", "1F", "1f-sa164"),
+        stop("two", "0F", "tongfa-canteen"),
+      ],
+      true
+    );
+
+    expect(geometry.complete).toBe(true);
+    expect(
+      geometry.legs[0].segments.some((segment) =>
+        segment.nodeIds.some((nodeId) => nodeId.includes("ELEV"))
+      )
+    ).toBe(true);
+    const instruction = getGuideLegInstruction(
+        {
+          id: "accessible",
+          name: "无障碍路线",
+          description: "test",
+          tags: ["accessible"],
+          estimatedMinutes: 10,
+          stops: [
+            stop("one", "1F", "1f-sa164"),
+            stop("two", "0F", "tongfa-canteen"),
+          ],
+          geometry,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        0
+      );
+    expect(instruction).toMatch(/^前往 [A-Z]{2} (西侧|东侧)电梯，下至 0F$/);
   });
 });

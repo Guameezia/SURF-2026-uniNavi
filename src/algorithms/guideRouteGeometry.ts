@@ -9,7 +9,7 @@ import type {
   RouteSegment,
 } from "../types/indoor";
 import type { GuideRouteGeometry, GuideRouteLeg, GuideRouteStop, GuideStopAnchor } from "../types/guide";
-import { findRoute } from "./pathfinding";
+import { findPreferredRoute, findRoute } from "./pathfinding";
 import { VERTICAL_SHAFTS } from "../data/floorPortals";
 import { getRoomById } from "../data/roomConfig";
 import type { OverviewRect } from "../types/room";
@@ -142,7 +142,8 @@ function stopAnchor(stop: GuideRouteStop, stopIndex: number): GuideStopAnchor {
 /** 为有序站点构建完整攻略路线几何（相邻便签间自动最短路寻路） */
 export function buildGuideRouteGeometry(
   graph: Graph,
-  stops: GuideRouteStop[]
+  stops: GuideRouteStop[],
+  accessible = false
 ): GuideRouteGeometry {
   const legs: GuideRouteLeg[] = [];
   const floorMap = new Map<FloorId, RouteSegment>();
@@ -165,7 +166,9 @@ export function buildGuideRouteGeometry(
       continue;
     }
 
-    const route = findRoute(graph, startNodeId, endNodeId);
+    const route = accessible
+      ? findPreferredRoute(graph, startNodeId, endNodeId, "comfort")
+      : findRoute(graph, startNodeId, endNodeId);
     if (!route.found) {
       complete = false;
       legs.push({
@@ -201,10 +204,13 @@ export function buildGuideRouteGeometry(
 export function resolveGuideRouteGeometry(
   graph: Graph | null | undefined,
   stops: GuideRouteStop[],
-  cached?: GuideRouteGeometry
+  cached?: GuideRouteGeometry,
+  accessible = false
 ): GuideRouteGeometry | null {
   // 图已加载时始终按当前节点/边重新计算，避免 localStorage 中旧几何为空或过期。
-  if (graph && stops.length >= 2) return buildGuideRouteGeometry(graph, stops);
+  if (graph && stops.length >= 2) {
+    return buildGuideRouteGeometry(graph, stops, accessible);
+  }
   return cached ?? null;
 }
 

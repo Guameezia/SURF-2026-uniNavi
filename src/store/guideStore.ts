@@ -4,6 +4,7 @@ import type {
   GuideOverlay,
   GuideRoute,
   GuideRouteStop,
+  GuideRouteTag,
   GuideTheme,
 } from "../types/guide";
 import type { LeafNote } from "../types/leafNote";
@@ -36,7 +37,23 @@ interface GuideState {
     notes: LeafNote[];
     collectionId?: string | null;
     graph?: Graph | null;
+    description?: string;
+    tags?: GuideRouteTag[];
+    estimatedMinutes?: number;
   }) => GuideRoute | null;
+  updateRouteDetails: (
+    id: string,
+    patch: Partial<
+      Pick<GuideRoute, "name" | "description" | "tags" | "estimatedMinutes">
+    >,
+    graph?: Graph | null
+  ) => void;
+  updateRouteStops: (
+    id: string,
+    noteIds: string[],
+    notes: LeafNote[],
+    graph?: Graph | null
+  ) => GuideRoute | null;
   deleteRoute: (id: string) => void;
   recomputeRouteGeometries: (graph: Graph) => void;
 
@@ -57,6 +74,40 @@ function createId() {
   return `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+const ROUTE_TAG_IDS = new Set<GuideRouteTag>([
+  "food",
+  "study",
+  "tour",
+  "accessible",
+]);
+
+export function estimateGuideRouteMinutes(stops: GuideRouteStop[]): number {
+  const floors = new Set(stops.map((stop) => stop.floorId)).size;
+  return Math.max(
+    10,
+    stops.length * 5 + Math.max(0, stops.length - 1) * 2 + (floors - 1) * 4
+  );
+}
+
+function normalizeRoute(route: GuideRoute): GuideRoute {
+  const tags = Array.isArray(route.tags)
+    ? route.tags.filter((tag): tag is GuideRouteTag => ROUTE_TAG_IDS.has(tag))
+    : [];
+  const normalizedTags = tags.length > 0 ? [...new Set(tags)] : ["tour" as const];
+  return {
+    ...route,
+    description:
+      typeof route.description === "string" && route.description.trim()
+        ? route.description.trim()
+        : `串联 ${route.stops.length} 个校园地点的主题攻略路线。`,
+    tags: normalizedTags,
+    estimatedMinutes:
+      Number.isFinite(route.estimatedMinutes) && route.estimatedMinutes > 0
+        ? Math.round(route.estimatedMinutes)
+        : estimateGuideRouteMinutes(route.stops),
+  };
+}
+
 function load(): GuidePersist {
   if (typeof window === "undefined") return { collections: [], routes: [] };
   try {
@@ -65,7 +116,9 @@ function load(): GuidePersist {
     const parsed = JSON.parse(raw) as GuidePersist;
     return {
       collections: Array.isArray(parsed.collections) ? parsed.collections : [],
-      routes: Array.isArray(parsed.routes) ? parsed.routes : [],
+      routes: Array.isArray(parsed.routes)
+        ? parsed.routes.map((route) => normalizeRoute(route))
+        : [],
     };
   } catch {
     return { collections: [], routes: [] };
@@ -192,16 +245,37 @@ export const useGuideStore = create<GuideState>((set, get) => ({
     });
   },
 
-  createRoute: ({ name, noteIds, notes, collectionId, graph }) => {
+  createRoute: ({
+    name,
+    noteIds,
+    notes,
+    collectionId,
+    graph,
+    description,
+    tags = ["tour"],
+    estimatedMinutes,
+  }) => {
     const unique = [...new Set(noteIds)];
     if (unique.length < 3 || unique.length > 8) return null;
     const stops = stopsFromNotes(unique, notes);
     if (stops.length < 3) return null;
     const now = Date.now();
-    const geometry = graph ? buildGuideRouteGeometry(graph, stops) : undefined;
+    const routeTags = tags.length > 0 ? [...new Set(tags)] : ["tour" as const];
+    const accessible = routeTags.includes("accessible");
+    const geometry = graph
+      ? buildGuideRouteGeometry(graph, stops, accessible)
+      : undefined;
     const route: GuideRoute = {
       id: createId(),
       name: name.trim() || "未命名路线",
+      description:
+        description?.trim() ||
+        `串联 ${stops.length} 个校园地点的主题攻略路线。`,
+      tags: routeTags,
+      estimatedMinutes:
+        estimatedMinutes && estimatedMinutes > 0
+          ? Math.round(estimatedMinutes)
+          : estimateGuideRouteMinutes(stops),
       collectionId: collectionId ?? null,
       stops,
       geometry,
@@ -216,11 +290,83 @@ export const useGuideStore = create<GuideState>((set, get) => ({
     return route;
   },
 
+  updateRouteDetails: (id, patch, graph) => {
+    set((s) => {
+      const routes = s.routes.map((route) => {
+        if (route.id !== id) return route;
+        const tags =
+          patch.tags && patch.tags.length > 0
+            ? [...new Set(patch.tags)]
+            : route.tags;
+        const next = normalizeRoute({
+          ...route,
+          ...patch,
+          name: patch.name?.trim() || route.name,
+          description: patch.description?.trim() || route.description,
+          tags,
+          estimatedMinutes:
+            patch.estimatedMinutes && patch.estimatedMinutes > 0
+              ? Math.round(patch.estimatedMinutes)
+              : route.estimatedMinutes,
+          updatedAt: Date.now(),
+        });
+        if (!graph || tags.includes("accessible") === route.tags.includes("accessible")) {
+          return next;
+        }
+        return {
+          ...next,
+          geometry: buildGuideRouteGeometry(
+            graph,
+            next.stops,
+            tags.includes("accessible")
+          ),
+        };
+      });
+      save({ collections: s.collections, routes });
+      return { routes };
+    });
+  },
+
+  updateRouteStops: (id, noteIds, notes, graph) => {
+    const unique = [...new Set(noteIds)];
+    if (unique.length < 3 || unique.length > 8) return null;
+    const stops = stopsFromNotes(unique, notes);
+    if (stops.length !== unique.length) return null;
+
+    let updated: GuideRoute | null = null;
+    set((s) => {
+      const routes = s.routes.map((route) => {
+        if (route.id !== id) return route;
+        updated = {
+          ...route,
+          stops,
+          geometry: graph
+            ? buildGuideRouteGeometry(
+                graph,
+                stops,
+                route.tags.includes("accessible")
+              )
+            : undefined,
+          estimatedMinutes: estimateGuideRouteMinutes(stops),
+          updatedAt: Date.now(),
+        };
+        return updated;
+      });
+      save({ collections: s.collections, routes });
+      return { routes };
+    });
+    return updated;
+  },
+
   recomputeRouteGeometries: (graph) => {
     set((s) => {
       const routes = s.routes.map((r) => ({
         ...r,
-        geometry: buildGuideRouteGeometry(graph, r.stops),
+        geometry: buildGuideRouteGeometry(
+          graph,
+          r.stops,
+          r.tags.includes("accessible")
+        ),
         updatedAt: Date.now(),
       }));
       save({ collections: s.collections, routes });
@@ -292,7 +438,9 @@ export const useGuideStore = create<GuideState>((set, get) => ({
     );
     return [
       `【UniNavi 主题路线】${route.name}`,
-      `${route.stops.length} 站顺序导览`,
+      route.description,
+      `${route.estimatedMinutes} 分钟 · ${route.stops.length} 站 · ${[...new Set(route.stops.map((stop) => stop.floorId))].join("、")}`,
+      `标签：${route.tags.join("、")}`,
       "",
       ...lines,
       "",

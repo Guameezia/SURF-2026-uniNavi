@@ -42,6 +42,7 @@ import {
   getNextRouteRoom,
 } from "../../algorithms/routeRoomBridge";
 import { useGuideStore } from "../../store/guideStore";
+import { useGuideProgressStore } from "../../store/guideProgressStore";
 import type { TimelineFilter } from "../../types/guide";
 
 const BUILDING_ID = "S";
@@ -57,29 +58,6 @@ const ARROW_TO_DIR: Record<string, Direction> = {
   ArrowLeft: "left",
   ArrowRight: "right",
 };
-
-function guideDirectionLabel(
-  floorId: string,
-  room: ReturnType<typeof getRoomById>,
-  nextFloorId: string,
-  nextRoom: ReturnType<typeof getRoomById>
-): string {
-  if (floorId !== nextFloorId) {
-    const currentLevel = Number.parseInt(floorId, 10);
-    const nextLevel = Number.parseInt(nextFloorId, 10);
-    const vertical = nextLevel > currentLevel ? "↑ 上楼" : "↓ 下楼";
-    return `前往楼梯/电梯 · ${vertical}至 ${nextFloorId}`;
-  }
-  if (!room || !nextRoom) return "沿小地图橙色路线前进";
-  const from = room.overviewRect;
-  const to = nextRoom.overviewRect;
-  const dx = to.x + to.w / 2 - (from.x + from.w / 2);
-  const dy = to.y + to.h / 2 - (from.y + from.h / 2);
-  if (Math.abs(dx) >= Math.abs(dy)) {
-    return dx >= 0 ? "→ 向东前进" : "← 向西前进";
-  }
-  return dy >= 0 ? "↓ 向南前进" : "↑ 向北前进";
-}
 
 interface RoomMapViewProps {
   debugMode?: boolean;
@@ -132,7 +110,7 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
   const [collectNote, setCollectNote] = useState<LeafNote | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>("all");
-  const [guideProgressIndex, setGuideProgressIndex] = useState(0);
+  const activeGuideProgress = useGuideProgressStore((state) => state.active);
 
   const [noteFilter, setNoteFilter] = useState<LeafNotePanelFilter>({
     tagId: "all",
@@ -402,48 +380,22 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
   }, [activeOverlay, routes]);
 
   useEffect(() => {
-    setGuideProgressIndex(0);
-  }, [activeGuideRoute?.id]);
-
-  useEffect(() => {
-    if (!activeGuideRoute || !currentRoomId) return;
-    const reachedIndex = activeGuideRoute.stops.findIndex(
-      (stop) => stop.floorId === floorId && stop.roomId === currentRoomId
-    );
-    if (reachedIndex >= 0) setGuideProgressIndex(reachedIndex);
-  }, [activeGuideRoute, currentRoomId, floorId]);
-
-  useEffect(() => {
     if (!activeGuideRoute || !graph || activeGuideRoute.geometry) return;
     recomputeRouteGeometries(graph);
   }, [activeGuideRoute, graph, recomputeRouteGeometries]);
 
-  const currentGuideStopIndex = activeGuideRoute ? guideProgressIndex : -1;
+  const currentGuideStopIndex = activeGuideRoute
+    ? activeGuideProgress?.routeId === activeGuideRoute.id
+      ? activeGuideProgress.currentStopIndex
+      : 0
+    : -1;
   const currentStopOrder =
     currentGuideStopIndex >= 0 ? currentGuideStopIndex + 1 : null;
-
-  const nextGuideStop = useMemo(() => {
-    if (!activeGuideRoute || currentGuideStopIndex < 0) return null;
-    if (currentGuideStopIndex >= activeGuideRoute.stops.length - 1) return null;
-    return activeGuideRoute.stops[currentGuideStopIndex + 1];
-  }, [activeGuideRoute, currentGuideStopIndex]);
 
   const guideActiveLegIndex =
     activeGuideRoute && currentGuideStopIndex < activeGuideRoute.stops.length - 1
       ? currentGuideStopIndex
       : null;
-
-  const nextGuideDirection = useMemo(() => {
-    if (!nextGuideStop) return null;
-    const nextRoom = getRoomById(nextGuideStop.floorId, nextGuideStop.roomId);
-    return guideDirectionLabel(floorId, room, nextGuideStop.floorId, nextRoom);
-  }, [nextGuideStop, floorId, room]);
-
-  const currentGuideStopNote = useMemo(() => {
-    if (!activeGuideRoute || currentGuideStopIndex < 0) return null;
-    const stop = activeGuideRoute.stops[currentGuideStopIndex];
-    return notes.find((n) => n.id === stop.noteId) ?? null;
-  }, [activeGuideRoute, currentGuideStopIndex, notes]);
 
   const routeNoteIdsInRoom = useMemo(() => {
     if (!activeGuideRoute || !currentRoomId) return new Set<string>();
@@ -617,37 +569,6 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
             </button>
           </div>
         )}
-        {activeGuideRoute && currentGuideStopIndex >= 0 && (
-          <div className="room-guide-leg" aria-label="当前攻略站点">
-            <button
-              type="button"
-              className="room-guide-leg-current"
-              onClick={() => {
-                if (currentGuideStopNote) {
-                  setNoteDialog({ kind: "view", note: currentGuideStopNote });
-                }
-              }}
-            >
-              <span className="room-guide-leg-index">{currentStopOrder}</span>
-              <span className="room-guide-leg-label">
-                当前站 · {activeGuideRoute.stops[currentGuideStopIndex].roomLabel}
-              </span>
-              <span className="room-guide-leg-hint">点击查看便签</span>
-            </button>
-            {nextGuideStop ? (
-              <div className="room-guide-leg-next" role="status">
-                <span>下一站：<strong>{nextGuideStop.roomLabel}</strong></span>
-                <span className="room-guide-leg-direction">
-                  {nextGuideDirection}
-                </span>
-              </div>
-            ) : (
-              <div className="room-guide-leg-next room-guide-leg-next--done" role="status">
-                已是最后一站
-              </div>
-            )}
-          </div>
-        )}
         {isNavigating && nextRouteRoom && (
           <div className="room-nav-hint" role="status">
             下一站：<strong>{nextRouteRoom.label}</strong>
@@ -806,7 +727,6 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
         onSelectGuideStop={(stopIndex) => {
           const stop = activeGuideRoute?.stops[stopIndex];
           if (!stop) return;
-          setGuideProgressIndex(stopIndex);
           focusOnMap({
             floorId: stop.floorId,
             roomId: stop.roomId,
@@ -820,6 +740,7 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
         guideStops={guideStops}
         guideGeometry={activeGuideRoute?.geometry}
         guideRouteStops={activeGuideRoute?.stops}
+        guideAccessible={activeGuideRoute?.tags.includes("accessible")}
         guideActiveLegIndex={guideActiveLegIndex}
       />
 

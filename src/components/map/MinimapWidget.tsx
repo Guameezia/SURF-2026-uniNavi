@@ -43,6 +43,7 @@ interface MinimapWidgetProps {
   guideGeometry?: GuideRouteGeometry | null;
   /** 完整攻略站点（用于现场寻路补全几何） */
   guideRouteStops?: GuideRouteStop[];
+  guideAccessible?: boolean;
   guideActiveLegIndex?: number | null;
 }
 
@@ -120,6 +121,7 @@ export function MinimapWidget({
   guideStops,
   guideGeometry,
   guideRouteStops,
+  guideAccessible = false,
   guideActiveLegIndex = null,
 }: MinimapWidgetProps) {
   const { width, height, imageSrc } = getFloorOverview(floorId);
@@ -138,8 +140,14 @@ export function MinimapWidget({
   const roomNavMode = !!onSelectRoom;
 
   const resolvedGuideGeometry = useMemo(
-    () => resolveGuideRouteGeometry(graph, guideRouteStops ?? [], guideGeometry ?? undefined),
-    [graph, guideRouteStops, guideGeometry]
+    () =>
+      resolveGuideRouteGeometry(
+        graph,
+        guideRouteStops ?? [],
+        guideGeometry ?? undefined,
+        guideAccessible
+      ),
+    [graph, guideRouteStops, guideGeometry, guideAccessible]
   );
 
   const guideRouteActive = !!resolvedGuideGeometry;

@@ -13,10 +13,15 @@ import { createGraph, getPOINodes, getFloors } from "../algorithms/graph";
 import { findDualRoutes } from "../algorithms/pathfinding";
 import { filterPOISuggestions, resolvePOINodeId } from "../utils/poiSearch";
 import { MapViewport } from "../components/map/MapViewport";
+import { GuideProgressBar } from "../components/guide/GuideProgressBar";
 import { sNodes, sEdges } from "../data";
 import type { POI } from "../types/indoor";
 
-export function HomePage() {
+interface HomePageProps {
+  onShowGuides?: () => void;
+}
+
+export function HomePage({ onShowGuides }: HomePageProps) {
   const {
     graph,
     pois,
@@ -250,6 +255,7 @@ export function HomePage() {
       </header>
 
       <main className="app-main">
+        <GuideProgressBar onShowGuides={onShowGuides} />
         <aside className="floor-selector-panel">
           <FloorSelector />
         </aside>

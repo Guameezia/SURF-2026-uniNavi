@@ -30,7 +30,9 @@ function App() {
   return (
     <div className="app">
       <div className="app-content">
-        {activeTab === "home" && <HomePage />}
+        {activeTab === "home" && (
+          <HomePage onShowGuides={() => setActiveTab("guides")} />
+        )}
         {activeTab === "guides" && (
           <GuidePage onShowOnMap={() => setActiveTab("home")} />
         )}

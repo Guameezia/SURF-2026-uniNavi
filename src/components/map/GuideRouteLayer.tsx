@@ -27,8 +27,8 @@ export function GuideRouteLayer({
 
   return (
     <g className="guide-route-layer" transform={`translate(${POINT_NUDGE.x}, ${POINT_NUDGE.y})`}>
-      {paths.map((path) => (
-        <g key={`leg-${path.legIndex}`} pointerEvents="none">
+      {paths.map((path, index) => (
+        <g key={`leg-${path.legIndex}-${index}`} pointerEvents="none">
           <path
             d={path.d}
             fill="none"
