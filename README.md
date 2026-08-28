@@ -25,7 +25,6 @@
 ### 安装依赖
 
 ```bash
-cd uni-navi-web
 npm install
 ```
 
@@ -35,21 +34,12 @@ npm install
 npm run dev
 ```
 
-访问 http://localhost:5173 查看应用。
-
 ### 生产构建
 
 ```bash
 npm run build
 ```
-
 构建产物输出到 `dist/` 目录。
-
-### 预览构建结果
-
-```bash
-npm run preview
-```
 
 ## 项目结构
 
