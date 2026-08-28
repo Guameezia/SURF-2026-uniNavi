@@ -1,6 +1,4 @@
-# S 楼室内导航 Web 版
-
-基于 React + TypeScript + Vite 的室内导航 Web 应用，从 uni-app 微信小程序项目迁移而来。
+基于 React + TypeScript + Vite 的室内导航 Web 应用。
 
 ## 项目简介
 
@@ -218,43 +216,3 @@ interface MapEdge {
 5. **清除路径**：点击「Edit」后可重新编辑路线
 
 调试模式仅在开发环境（`npm run dev`）显示。
-
-## 开发计划
-
-### 当前版本
-
-- [x] 项目基础架构搭建
-- [x] S 楼数据迁移
-- [x] 楼层地图显示（CAD + 分房间双模式）
-- [x] POI 展示与路径规划（Comfort / Fast）
-- [x] 图寻路 ↔ 分房间导航桥接
-- [x] 楼层几何 / 竖井连接单一数据源
-
-### 后续计划
-
-以下功能计划在后续版本中实现：
-
-- [ ] 室内定位服务
-- [ ] 模糊搜索和筛选
-- [ ] AI 智能推荐
-- [ ] 复杂信息卡片
-- [ ] UI 美化和动画
-- [ ] 更多建筑数据
-- [ ] 移动端适配优化
-
-## 从旧项目迁移
-
-本项目从 uni-app 微信小程序版本迁移而来，主要变更：
-
-| 原项目 | 新项目 |
-|--------|--------|
-| uni-app / Vue | React 18 |
-| JavaScript | TypeScript 5 |
-| 小程序 Canvas | SVG 原生渲染 |
-| 本地状态 | Zustand 状态管理 |
-| `floor` 字段 | `floorId` 字段 |
-| `staircase` 类型 | `stairs` 类型 |
-
-## License
-
-MIT
