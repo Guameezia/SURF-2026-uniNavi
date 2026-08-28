@@ -4,6 +4,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useMapStore } from "../store/mapStore";
+import { useGuideStore } from "../store/guideStore";
 import { FloorSelector } from "../components/map/FloorSelector";
 import { RouteSearchField, getPOISearchDisplay } from "../components/navigation/RouteSearchField";
 import { DirectionsPanel } from "../components/navigation/DirectionsPanel";
@@ -12,10 +13,15 @@ import { createGraph, getPOINodes, getFloors } from "../algorithms/graph";
 import { findDualRoutes } from "../algorithms/pathfinding";
 import { filterPOISuggestions, resolvePOINodeId } from "../utils/poiSearch";
 import { MapViewport } from "../components/map/MapViewport";
+import { GuideProgressBar } from "../components/guide/GuideProgressBar";
 import { sNodes, sEdges } from "../data";
 import type { POI } from "../types/indoor";
 
-export function HomePage() {
+interface HomePageProps {
+  onShowGuides?: () => void;
+}
+
+export function HomePage({ onShowGuides }: HomePageProps) {
   const {
     graph,
     pois,
@@ -56,6 +62,7 @@ export function HomePage() {
   const steps = activeRoute?.steps ?? [];
 
   useEffect(() => {
+    if (graph) return;
     try {
       const graphData = createGraph(sNodes, sEdges);
       const poisData = getPOINodes(graphData);
@@ -64,7 +71,15 @@ export function HomePage() {
     } catch (err) {
       console.error("Failed to initialize map:", err);
     }
-  }, [initializeMap]);
+  }, [initializeMap, graph]);
+
+  useEffect(() => {
+    if (!graph) return;
+    const { routes, recomputeRouteGeometries } = useGuideStore.getState();
+    if (routes.some((r) => !r.geometry)) {
+      recomputeRouteGeometries(graph);
+    }
+  }, [graph]);
 
   const handleStartChange = (query: string) => {
     setStartQuery(query);
@@ -240,6 +255,7 @@ export function HomePage() {
       </header>
 
       <main className="app-main">
+        <GuideProgressBar onShowGuides={onShowGuides} />
         <aside className="floor-selector-panel">
           <FloorSelector />
         </aside>

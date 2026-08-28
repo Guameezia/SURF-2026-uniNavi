@@ -138,14 +138,21 @@ export const useMapStore = create<MapState>((set, get) => ({
   error: null,
 
   initializeMap: (graph, pois, floors) => {
-    const prefer0F = floors.find((f) => f.id === "0F");
-    set({
-      graph,
-      pois,
-      floors,
-      currentFloorId: prefer0F?.id ?? (floors.length > 0 ? floors[0].id : "0F"),
-      isLoading: false,
-      error: null,
+    set((state) => {
+      const prefer0F = floors.find((f) => f.id === "0F");
+      const keepFloor =
+        state.graph &&
+        floors.some((f) => f.id === state.currentFloorId)
+          ? state.currentFloorId
+          : prefer0F?.id ?? (floors.length > 0 ? floors[0].id : "0F");
+      return {
+        graph,
+        pois,
+        floors,
+        currentFloorId: keepFloor,
+        isLoading: false,
+        error: null,
+      };
     });
   },
 

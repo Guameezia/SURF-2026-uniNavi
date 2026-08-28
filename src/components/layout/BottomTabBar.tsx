@@ -1,4 +1,4 @@
-export type AppTab = "home" | "topics" | "profile";
+export type AppTab = "home" | "guides" | "profile";
 
 interface TabItem {
   id: AppTab;
@@ -8,7 +8,7 @@ interface TabItem {
 
 const TABS: TabItem[] = [
   { id: "home", label: "首页", icon: "🏠" },
-  { id: "topics", label: "话题", icon: "💬" },
+  { id: "guides", label: "攻略", icon: "📒" },
   { id: "profile", label: "我的", icon: "👤" },
 ];
 

@@ -63,6 +63,7 @@ interface LeafNoteSheetProps {
   onEdit?: () => void;
   onMarkHelpful?: () => void;
   onSetStatus?: (status: LeafNoteStatus) => void;
+  onAddToCollection?: () => void;
   onClose: () => void;
 }
 
@@ -89,6 +90,7 @@ export function LeafNoteSheet({
   onEdit,
   onMarkHelpful,
   onSetStatus,
+  onAddToCollection,
   onClose,
   guide,
 }: LeafNoteSheetProps) {
@@ -373,6 +375,15 @@ export function LeafNoteSheet({
                 </button>
               )}
               <div className="leaf-note-sheet-actions-right">
+                {onAddToCollection && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={onAddToCollection}
+                  >
+                    加入收藏夹
+                  </button>
+                )}
                 {onEdit && (
                   <button type="button" className="btn-secondary" onClick={onEdit}>
                     编辑

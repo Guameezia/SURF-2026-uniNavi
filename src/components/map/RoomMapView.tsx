@@ -26,7 +26,11 @@ import { LeafToolbar } from "./LeafToolbar";
 import { LeafMarker } from "./LeafIcon";
 import { LeafNoteSheet, type LeafNoteSheetMode } from "./LeafNoteSheet";
 import { type LeafNotePanelFilter } from "./LeafNotePanel";
+import { AddToCollectionSheet } from "../guide/AddToCollectionSheet";
+import { TimelineSheet } from "../guide/TimelineSheet";
+import { TimelineFilterButton } from "../guide/TimelineFilterButton";
 import { filterAndSortNotes } from "../../utils/leafNoteTags";
+import { useTwoFingerPanZoom } from "../../hooks/useTwoFingerPanZoom";
 import {
   canPromoteCluster,
   defaultTitleFromNote,
@@ -36,12 +40,13 @@ import {
 import {
   getRoomRouteSegment,
   getNextRouteRoom,
-  filterRouteDirections,
 } from "../../algorithms/routeRoomBridge";
+import { useGuideStore } from "../../store/guideStore";
+import { useGuideProgressStore } from "../../store/guideProgressStore";
+import type { TimelineFilter } from "../../types/guide";
 
 const BUILDING_ID = "S";
 const MAP_INTERACTION = { minScale: 0.5, maxScale: 2.5, scaleStep: 0.1 };
-const DRAG_THRESHOLD = 5;
 
 type NoteDialogState =
   | { kind: "create"; x: number; y: number }
@@ -60,7 +65,6 @@ interface RoomMapViewProps {
 
 export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode = false }) => {
   const svgRef = useRef<SVGSVGElement>(null);
-  const dragMovedRef = useRef(false);
 
   const {
     currentFloorId,
@@ -69,6 +73,7 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
     clearFloorEntry,
     uiPhase,
     roomRoutePlan,
+    graph,
   } = useMapStore();
   const { currentRoomId, initForFloor, setRoom } = useRoomStore();
   const {
@@ -87,11 +92,25 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
     dropLeafOnArrive,
     consumeDropLeafIntent,
     clearPendingTopic,
+    pendingMapFocus,
+    consumeMapFocus,
+    focusOnMap,
   } = useAppNavStore();
+  const {
+    activeOverlay,
+    setActiveOverlay,
+    collections,
+    routes,
+    recomputeRouteGeometries,
+  } = useGuideStore();
 
   const activeTopics = getActiveTopics();
 
   const [createTopicId, setCreateTopicId] = useState<string | null>(null);
+  const [collectNote, setCollectNote] = useState<LeafNote | null>(null);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>("all");
+  const activeGuideProgress = useGuideProgressStore((state) => state.active);
 
   const [noteFilter, setNoteFilter] = useState<LeafNotePanelFilter>({
     tagId: "all",
@@ -117,13 +136,25 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
   const rooms = getRoomsForFloor(floorId);
   const room = currentRoomId ? getRoomById(floorId, currentRoomId) : undefined;
 
-  const [scale, setScale] = useState(1);
-  const [translate, setTranslate] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0, tx: 0, ty: 0 });
   const [leafDropMode, setLeafDropMode] = useState(false);
   const [noteDialog, setNoteDialog] = useState<NoteDialogState | null>(null);
   const [viewpointDialog, setViewpointDialog] = useState<ViewpointDef | null>(null);
+
+  const {
+    containerRef: canvasRef,
+    scale,
+    translate,
+    isGesturing,
+    resetView,
+    zoomBy,
+    handleTouchStart,
+    handleTouchEnd,
+    handleTouchCancel,
+  } = useTwoFingerPanZoom({
+    minScale: MAP_INTERACTION.minScale,
+    maxScale: MAP_INTERACTION.maxScale,
+    enabled: !leafDropMode,
+  });
 
   useEffect(() => {
     if (currentRoomId && getRoomById(floorId, currentRoomId)) {
@@ -145,6 +176,28 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
     setLeafDropMode(true);
     setNoteDialog(null);
   }, [dropLeafOnArrive, pendingTopic, consumeDropLeafIntent]);
+
+  useEffect(() => {
+    if (!pendingMapFocus) return;
+    const intent = consumeMapFocus();
+    if (!intent) return;
+    if (intent.floorId !== floorId) {
+      transitionToFloor(intent.floorId, null, intent.roomId);
+    } else {
+      setRoom(intent.roomId);
+    }
+    if (intent.noteId) {
+      const note = notes.find((n) => n.id === intent.noteId);
+      if (note) setNoteDialog({ kind: "view", note });
+    }
+  }, [
+    pendingMapFocus,
+    consumeMapFocus,
+    floorId,
+    transitionToFloor,
+    setRoom,
+    notes,
+  ]);
 
   useEffect(() => {
     if (floorEntryRoomId) {
@@ -183,12 +236,11 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
   );
 
   useEffect(() => {
-    setScale(1);
-    setTranslate({ x: 0, y: 0 });
+    resetView();
     setNoteDialog(null);
     setViewpointDialog(null);
     setLeafDropMode(false);
-  }, [currentRoomId]);
+  }, [currentRoomId, resetView]);
 
   const verticalPad = useMemo(() => {
     if (!room?.floorPortal || !isVerticalTransportRoom(room)) return undefined;
@@ -286,16 +338,8 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
         }
       }
     });
-    if (isNavigating && floorRoomRoute && floorRoomRoute.length > 0) {
-      return filterRouteDirections(
-        floorId,
-        room.id,
-        result,
-        floorRoomRoute
-      );
-    }
     return result;
-  }, [room, floorId, isNavigating, floorRoomRoute]);
+  }, [room, floorId]);
 
   const highlightDirs = useMemo(() => {
     if (!nextRouteRoomId || !room) return [] as Direction[];
@@ -304,11 +348,74 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
     );
   }, [nextRouteRoomId, room]);
 
+  const spotlightRoomIds = useMemo(() => {
+    if (!activeOverlay || activeOverlay.kind !== "collection") return undefined;
+    const collection = collections.find((c) => c.id === activeOverlay.id);
+    if (!collection) return undefined;
+    const noteIdSet = new Set(collection.noteIds);
+    const roomIds = [
+      ...new Set(
+        notes
+          .filter((n) => noteIdSet.has(n.id) && n.floorId === floorId)
+          .map((n) => n.roomId)
+      ),
+    ];
+    return roomIds.length > 0 ? roomIds : undefined;
+  }, [activeOverlay, collections, notes, floorId]);
+
+  const guideStops = useMemo(() => {
+    if (!activeOverlay || activeOverlay.kind !== "route") return undefined;
+    const route = routes.find((r) => r.id === activeOverlay.id);
+    if (!route) return undefined;
+    const stops = route.stops
+      .map((stop, index) => ({ stop, order: index + 1 }))
+      .filter(({ stop }) => stop.floorId === floorId)
+      .map(({ stop, order }) => ({ roomId: stop.roomId, order }));
+    return stops.length > 0 ? stops : undefined;
+  }, [activeOverlay, routes, floorId]);
+
+  const activeGuideRoute = useMemo(() => {
+    if (!activeOverlay || activeOverlay.kind !== "route") return null;
+    return routes.find((r) => r.id === activeOverlay.id) ?? null;
+  }, [activeOverlay, routes]);
+
+  useEffect(() => {
+    if (!activeGuideRoute || !graph || activeGuideRoute.geometry) return;
+    recomputeRouteGeometries(graph);
+  }, [activeGuideRoute, graph, recomputeRouteGeometries]);
+
+  const currentGuideStopIndex = activeGuideRoute
+    ? activeGuideProgress?.routeId === activeGuideRoute.id
+      ? activeGuideProgress.currentStopIndex
+      : 0
+    : -1;
+  const currentStopOrder =
+    currentGuideStopIndex >= 0 ? currentGuideStopIndex + 1 : null;
+
+  const guideActiveLegIndex =
+    activeGuideRoute && currentGuideStopIndex < activeGuideRoute.stops.length - 1
+      ? currentGuideStopIndex
+      : null;
+
+  const routeNoteIdsInRoom = useMemo(() => {
+    if (!activeGuideRoute || !currentRoomId) return new Set<string>();
+    return new Set(
+      activeGuideRoute.stops
+        .filter((s) => s.floorId === floorId && s.roomId === currentRoomId)
+        .map((s) => s.noteId)
+    );
+  }, [activeGuideRoute, currentRoomId, floorId]);
+
+  const activeOverlayLabel = useMemo(() => {
+    if (!activeOverlay) return null;
+    if (activeOverlay.kind === "collection") {
+      return collections.find((c) => c.id === activeOverlay.id)?.name ?? null;
+    }
+    return routes.find((r) => r.id === activeOverlay.id)?.name ?? null;
+  }, [activeOverlay, collections, routes]);
+
   const canvasW = room?.viewWidth ?? 640;
   const canvasH = room?.viewHeight ?? 400;
-
-  const clampScale = (s: number) =>
-    Math.min(MAP_INTERACTION.maxScale, Math.max(MAP_INTERACTION.minScale, s));
 
   const clientToSvg = useCallback((clientX: number, clientY: number) => {
     const svg = svgRef.current;
@@ -324,64 +431,23 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
-      if (!leafDropMode || dragMovedRef.current) return;
+      if (!leafDropMode || isGesturing) return;
       if ((e.target as Element).closest?.(".leaf-note-marker, .viewpoint-marker")) return;
       const pt = clientToSvg(e.clientX, e.clientY);
       if (!pt || !currentRoomId) return;
       if (pt.x < 0 || pt.y < 0 || pt.x > canvasW || pt.y > canvasH) return;
       setNoteDialog({ kind: "create", x: pt.x, y: pt.y });
     },
-    [leafDropMode, clientToSvg, currentRoomId, canvasW, canvasH]
+    [leafDropMode, isGesturing, clientToSvg, currentRoomId, canvasW, canvasH]
   );
-
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if ((e.target as Element).closest?.(".minimap-widget")) return;
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -MAP_INTERACTION.scaleStep : MAP_INTERACTION.scaleStep;
-    setScale((s) => clampScale(s + delta));
-  }, []);
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.button !== 0 || leafDropMode) return;
-      if ((e.target as Element).closest?.(".minimap-widget, .dir-pad")) return;
-      dragMovedRef.current = false;
-      setIsDragging(true);
-      setDragStart({
-        x: e.clientX,
-        y: e.clientY,
-        tx: translate.x,
-        ty: translate.y,
-      });
-    },
-    [leafDropMode, translate]
-  );
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!isDragging) return;
-      const dx = e.clientX - dragStart.x;
-      const dy = e.clientY - dragStart.y;
-      if (Math.hypot(dx, dy) > DRAG_THRESHOLD) dragMovedRef.current = true;
-      setTranslate({ x: dragStart.tx + dx, y: dragStart.ty + dy });
-    },
-    [isDragging, dragStart]
-  );
-
-  const handleMouseUp = useCallback(() => setIsDragging(false), []);
-
-  const resetView = useCallback(() => {
-    setScale(1);
-    setTranslate({ x: 0, y: 0 });
-  }, []);
 
   const zoomIn = useCallback(() => {
-    setScale((s) => clampScale(s + MAP_INTERACTION.scaleStep));
-  }, []);
+    zoomBy(MAP_INTERACTION.scaleStep);
+  }, [zoomBy]);
 
   const zoomOut = useCallback(() => {
-    setScale((s) => clampScale(s - MAP_INTERACTION.scaleStep));
-  }, []);
+    zoomBy(-MAP_INTERACTION.scaleStep);
+  }, [zoomBy]);
 
   const dialogNoteId =
     noteDialog && noteDialog.kind !== "create" ? noteDialog.note.id : null;
@@ -481,7 +547,28 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
             }}
             noteCount={roomNotes.length}
           />
+          <TimelineFilterButton
+            filter={timelineFilter}
+            onSelect={(next) => {
+              setTimelineFilter(next);
+              setTimelineOpen(true);
+            }}
+          />
         </div>
+        {activeOverlay?.kind === "collection" && activeOverlayLabel && (
+          <div className="room-guide-banner" role="status">
+            <span>
+              收藏夹高亮：<strong>{activeOverlayLabel}</strong>
+            </span>
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              onClick={() => setActiveOverlay(null)}
+            >
+              清除
+            </button>
+          </div>
+        )}
         {isNavigating && nextRouteRoom && (
           <div className="room-nav-hint" role="status">
             下一站：<strong>{nextRouteRoom.label}</strong>
@@ -506,12 +593,11 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
       )}
 
       <div
-        className={`room-interior-canvas${isPlacingLeaf ? " room-interior-canvas--drop-mode" : ""}${isDragging ? " room-interior-canvas--dragging" : ""}`}
-        onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        ref={canvasRef}
+        className={`room-interior-canvas${isPlacingLeaf ? " room-interior-canvas--drop-mode" : ""}${isGesturing ? " room-interior-canvas--gesturing" : ""}`}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
         onClick={handleCanvasClick}
       >
         <div
@@ -540,6 +626,28 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
             viewBox={`0 0 ${canvasW} ${canvasH}`}
             preserveAspectRatio="xMidYMid meet"
           >
+            {currentStopOrder != null && (
+              <g className="room-guide-stop-badge" pointerEvents="none">
+                <circle
+                  cx={40}
+                  cy={40}
+                  r={22}
+                  fill="#ef6c00"
+                  stroke="#fff"
+                  strokeWidth={3}
+                />
+                <text
+                  x={40}
+                  y={46}
+                  textAnchor="middle"
+                  fontSize={18}
+                  fontWeight={700}
+                  fill="#fff"
+                >
+                  {currentStopOrder}
+                </text>
+              </g>
+            )}
             {viewpoints.map((vp) => (
               <ViewpointMarker
                 key={vp.id}
@@ -561,6 +669,21 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
                 onClick={() => setNoteDialog({ kind: "view", note })}
               />
             ))}
+            {mapNotes
+              .filter((note) => routeNoteIdsInRoom.has(note.id))
+              .map((note) => (
+                <circle
+                  key={`route-ring-${note.id}`}
+                  cx={note.x}
+                  cy={note.y}
+                  r={22}
+                  fill="none"
+                  stroke="#ef6c00"
+                  strokeWidth={3}
+                  strokeDasharray="4 3"
+                  pointerEvents="none"
+                />
+              ))}
           </svg>
         </div>
 
@@ -601,9 +724,24 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
         rooms={rooms}
         currentRoomId={currentRoomId}
         onSelectRoom={navigateToRoom}
-        showRoute
+        onSelectGuideStop={(stopIndex) => {
+          const stop = activeGuideRoute?.stops[stopIndex];
+          if (!stop) return;
+          focusOnMap({
+            floorId: stop.floorId,
+            roomId: stop.roomId,
+            noteId: stop.noteId,
+          });
+        }}
+        showRoute={!activeGuideRoute && isNavigating}
         highlightRoomId={nextRouteRoomId}
         routeRoomIds={floorRoomRoute ?? undefined}
+        spotlightRoomIds={spotlightRoomIds}
+        guideStops={guideStops}
+        guideGeometry={activeGuideRoute?.geometry}
+        guideRouteStops={activeGuideRoute?.stops}
+        guideAccessible={activeGuideRoute?.tags.includes("accessible")}
+        guideActiveLegIndex={guideActiveLegIndex}
       />
 
       <LeafNoteSheet
@@ -678,6 +816,9 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
             ? (status) => setNoteStatus(sheetNote.id, status)
             : undefined
         }
+        onAddToCollection={
+          sheetNote ? () => setCollectNote(sheetNote) : undefined
+        }
         onDelete={
           noteDialog?.kind === "view" || noteDialog?.kind === "edit"
             ? () => {
@@ -693,6 +834,25 @@ export const RoomMapView: React.FC<RoomMapViewProps> = ({ debugMode: _debugMode 
             ? () => setNoteDialog({ kind: "edit", note: noteDialog.note })
             : undefined
         }
+      />
+
+      <AddToCollectionSheet
+        open={collectNote !== null}
+        note={collectNote}
+        onClose={() => setCollectNote(null)}
+      />
+
+      <TimelineSheet
+        open={timelineOpen}
+        floorId={floorId}
+        roomId={currentRoomId}
+        notes={notes}
+        filter={timelineFilter}
+        onSelectNote={(note) => {
+          setTimelineOpen(false);
+          setNoteDialog({ kind: "view", note });
+        }}
+        onClose={() => setTimelineOpen(false)}
       />
 
       <ViewpointDialog
