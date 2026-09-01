@@ -61,7 +61,7 @@ uni-navi-web/
 │   │   ├── edges.ts               # S 楼边数据 (613 条)
 │   │   ├── floorGeometry.ts       # 楼层坐标 / viewBox 单一数据源
 │   │   ├── floorPortals.ts        # 跨层竖井连接单一数据源
-│   │   ├── roomConfig.ts          # 0F/1F 分房间导航配置
+│   │   ├── roomConfig.ts          # 分房间导航配置
 │   │   ├── index.ts               # 数据导出入口
 │   │   └── adapters/
 │   │       └── legacyIndoorData.ts
@@ -75,8 +75,8 @@ uni-navi-web/
 │   ├── components/
 │   │   └── map/
 │   │       ├── MapViewport.tsx    # 统一视口（CAD / 分房间）
-│   │       ├── IndoorMapSVG.tsx   # 2F–5F 整层 CAD
-│   │       ├── RoomMapView.tsx    # 0F/1F 分房间导航
+│   │       ├── IndoorMapSVG.tsx   # 整层 CAD
+│   │       ├── RoomMapView.tsx    # 分房间导航
 │   │       └── FloorSelector.tsx
 │   ├── App.tsx                    # 主应用组件
 │   ├── App.css                    # 应用样式
@@ -150,12 +150,7 @@ interface MapEdge {
 
 `MapViewport` 按楼层自动切换渲染策略：
 
-| 楼层 | 模式 | 组件 | 交互 |
-|------|------|------|------|
-| 0F、1F | 分房间导航 | `RoomMapView` | 方向键 / 方向盘在 room 间移动 |
-| 2F–5F | 整层 CAD | `IndoorMapSVG` | 缩放、拖拽、点击 POI |
-
-规划路线后，`routeRoomBridge` 将图寻路的 `nodeIds` 映射为 room 序列；在 0F/1F 会：
+规划路线后，`routeRoomBridge` 将图寻路的 `nodeIds` 映射为 room 序列：
 
 - 自动进入路线起点 room
 - 方向盘仅显示沿路线允许的方向
@@ -198,9 +193,8 @@ interface MapEdge {
    - 选择终点 POI
    - 点击「Plan」按钮
    - 路径会在地图上显示，跨楼层路径可通过楼层选择器切换查看
-4. **0F/1F 分房间浏览**：
+4. **分房间浏览**：
    - 使用方向键或屏幕方向盘在走廊 / 房间间移动
-   - Tongfa 食堂、SA007、SD085 等有贴图；其余区域为占位
    - 右下角小地图可缩放、点击跳转 room；导航时显示路径
    - 「Drop a Leaf」放置便签，支持 localStorage 持久化
 5. **清除路径**：点击「Edit」后可重新编辑路线
